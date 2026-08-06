@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "network": "testnet",
+  "generated_at": "2026-08-06T13:00:00Z",
+  "commit_sha": "def5678",
+  "functions": [
+    {
+      "name": "mint",
+      "fixture_id": "test1",
+      "cpu_instructions": 1100,
+      "memory_bytes": 500,
+      "read_bytes": 210,
+      "write_bytes": 100,
+      "pct_of_network_cap": 0.055
+    }
+  ]
+}
