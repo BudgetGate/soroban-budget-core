@@ -54,7 +54,7 @@ func main() {
 			SchemaVersion: "1.0",
 			Network:       "testnet",
 			CommitSHA:     "dynamic",
-			Functions: []SnapshotFunction{
+			Functions: []FunctionCost{
 				{Name: "mint", CPUInstructions: 1100, MemoryBytes: 500, ReadBytes: 210, WriteBytes: 100},
 			},
 		}
