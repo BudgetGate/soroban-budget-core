@@ -41,5 +41,5 @@ func TestFormatDiffs(t *testing.T) {
 	}
 	
 	markdown := FormatDiffs(results)
-	assert.Contains(t, markdown, "| mint | CPU | 1000 | 1100 | 100 | 10.00% | ❌ REGRESSION |")
+	assert.Contains(t, markdown, "| mint | CPU | 1000 | 1100 | 100 | 10.00% | 0.00% | ❌ REGRESSION |")
 }
