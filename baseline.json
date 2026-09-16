@@ -5,8 +5,8 @@
   "commit_sha": "abc1234",
   "functions": [
     {
-      "name": "mint",
-      "fixture_id": "test1",
+      "name": "balance_check",
+      "fixture_id": "test_balance",
       "cpu_instructions": 1000,
       "memory_bytes": 500,
       "read_bytes": 200,

@@ -6,14 +6,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os/exec"
 )
 
 // JSONRPCRequest represents a standard JSON-RPC 2.0 request
 type JSONRPCRequest struct {
-	JSONRPC string        `json:"jsonrpc"`
-	ID      int           `json:"id"`
-	Method  string        `json:"method"`
-	Params  []interface{} `json:"params"`
+	JSONRPC string      `json:"jsonrpc"`
+	ID      int         `json:"id"`
+	Method  string      `json:"method"`
+	Params  interface{} `json:"params"`
 }
 
 // SimulateTransactionResponse represents the Soroban RPC response structure
@@ -44,7 +45,7 @@ func SimulateTransaction(rpcURL string, txXDR string) (*SimulateTransactionRespo
 		JSONRPC: "2.0",
 		ID:      1,
 		Method:  "simulateTransaction",
-		Params:  []interface{}{txXDR},
+		Params:  map[string]string{"transaction": txXDR},
 	}
 
 	payload, err := json.Marshal(reqBody)
@@ -73,4 +74,28 @@ func SimulateTransaction(rpcURL string, txXDR string) (*SimulateTransactionRespo
 	}
 
 	return &simResp, nil
+}
+
+func ParseTransactionData(b64 string) (int64, int64, int64, int64, error) {
+	if b64 == "" {
+		return 0, 0, 0, 0, nil
+	}
+	
+	cmd := exec.Command("node", "parse_xdr.js", b64)
+	out, err := cmd.Output()
+	if err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("node script failed: %w\nOutput: %s", err, string(out))
+	}
+	
+	var res struct {
+		ReadBytes       int64 `json:"readBytes"`
+		WriteBytes      int64 `json:"writeBytes"`
+		CPUInstructions int64 `json:"cpuInstructions"`
+		MemoryBytes     int64 `json:"memoryBytes"`
+	}
+	if err := json.Unmarshal(out, &res); err != nil {
+		return 0, 0, 0, 0, err
+	}
+	
+	return res.ReadBytes, res.WriteBytes, res.CPUInstructions, res.MemoryBytes, nil
 }

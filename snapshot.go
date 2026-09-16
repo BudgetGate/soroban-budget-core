@@ -5,6 +5,12 @@ import (
 	"io"
 )
 
+type FixtureEntry struct {
+	Name      string `json:"name"`
+	FixtureID string `json:"fixture_id"`
+	XDR       string `json:"xdr"`
+}
+
 type FunctionCost struct {
 	Name             string `json:"name"`
 	FixtureID        string `json:"fixture_id"`

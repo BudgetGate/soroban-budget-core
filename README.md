@@ -23,11 +23,17 @@ go build -o budget-core
 
 ## 🛠️ Usage
 
-The CLI takes two primary arguments: a path to a baseline JSON file and a path to the new JSON file you want to evaluate.
+1. Ensure you have a baseline generated.
+2. Provide an XDR payload or fixture to test against via `--fixture` or an existing snapshot via `--new`.
+3. Provide the testnet or mainnet RPC URL via `--rpc-url`.
+4. (Optional) Provide `--max-delta-pct` (default is 10.0) to configure the regression threshold.
 
+Example:
 ```bash
-./budget-core --baseline path/to/baseline.json --new path/to/new.json
+./budget-core --baseline baseline.json --fixture fixture.json --rpc-url https://soroban-testnet.stellar.org --max-delta-pct 10.0
 ```
+
+The CLI will produce a Markdown formatted table comparing the costs and surfacing regressions if they exceed the specified `--max-delta-pct` or reach a hardcoded network absolute cap (e.g. 100M CPU, 40MB Memory).
 
 ### Example Output
 
