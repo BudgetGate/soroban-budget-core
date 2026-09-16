@@ -28,3 +28,22 @@ This schema represents the JSON contract output by `soroban-budget-core`. It is 
 - `generated_at`: ISO8601 timestamp.
 - `commit_sha`: The commit hash of the contract being profiled.
 - `functions`: An array of profiling results for specific invoked functions.
+
+## Fixture Schema (Input)
+
+The fixture JSON file contains an array of inputs for simulation:
+
+```json
+[
+  {
+    "name": "mint",
+    "fixture_id": "test1",
+    "xdr": "AAAAAgAAAABdummyXDR..."
+  }
+]
+```
+
+### Fields
+- `name`: The logical name of the function or test.
+- `fixture_id`: A unique identifier for this fixture item.
+- `xdr`: The base64-encoded XDR of the transaction envelope.

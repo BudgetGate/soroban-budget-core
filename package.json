@@ -1,0 +1,23 @@
+{
+  "name": "soroban-budget-core",
+  "version": "1.0.0",
+  "description": "`soroban-budget-core` is the foundational Go-based CLI tool for the **BudgetGate** suite. It parses snapshot data from Soroban smart contract simulations, compares current resource usage against a baseline, detects regressions, and outputs a formatted Markdown report.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BudgetGate/soroban-budget-core.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/BudgetGate/soroban-budget-core/issues"
+  },
+  "homepage": "https://github.com/BudgetGate/soroban-budget-core#readme",
+  "dependencies": {
+    "@stellar/stellar-sdk": "^17.1.0"
+  }
+}
