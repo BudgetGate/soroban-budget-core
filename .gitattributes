@@ -1,0 +1,3 @@
+# Check text files out with LF on every OS. gofmt treats CRLF as unformatted, so with
+# core.autocrlf=true on Windows `gofmt -l .` would list every Go file.
+* text=auto eol=lf

@@ -10,7 +10,8 @@ Last updated: 2026-10-26 (after #9)
 - The docs site (budgetgate.github.io/docs/) now describes this `main`, including its known limitations. Changing user-facing behaviour needs a matching `BudgetGate/docs` PR.
 - C10 done: snapshots are written as schema `2.0`; `1.0` and `2.0` are read; a missing or unknown version exits 2 with an error on stderr.
 - C11 done: test data lives in `testdata/` (captured testnet responses, the fixture, a real snapshot); tests are table-driven; the README example prints a full report.
-- Next up: C15 (`.gitattributes`), then phase 3.
+- C15 done: `.gitattributes` keeps text files LF, so `gofmt -l .` works on Windows.
+- Phase 2 is done except committing the counter contract. Next up: phase 3, starting with C4 (exit codes), which A8 in the Action waits on.
 - Rule learned the hard way: do not stack PRs on feature branches. Base every PR on `main`.
 
 ## Phase 1 — Real measurement
@@ -27,7 +28,7 @@ Last updated: 2026-10-26 (after #9)
 
 - [x] C10: bump `schema_version` to `2.0`, document it in `SCHEMA.md`, reject snapshots with a missing or unknown version (exit 2)
 - [x] C11: move captured RPC responses to `testdata/`, table-driven tests, move sample snapshots and fixtures out of the repo root, make the README example produce a non-empty report
-- [ ] C15: `.gitattributes` so Go files stay LF on Windows checkouts
+- [x] C15: `.gitattributes` so Go files stay LF on Windows checkouts
 - [ ] Commit the v1/v2 counter contract used for verification under `testdata/` so the check can be rerun (it lives in the private workspace repo today)
 
 ## Phase 3 — Thresholds, exit codes, output
