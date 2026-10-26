@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
@@ -44,13 +46,16 @@ type SimulateTransactionResponse struct {
 	} `json:"error,omitempty"`
 }
 
+// rpcTimeout bounds a single simulateTransaction round trip, including reading the response.
+const rpcTimeout = 30 * time.Second
+
 // SimulateTransaction hits a Soroban RPC node to estimate resources for an XDR transaction envelope
-func SimulateTransaction(rpcURL string, txXDR string) (*SimulateTransactionResponse, error) {
-	return simulateTransaction(rpcURL, txXDR, 0)
+func SimulateTransaction(ctx context.Context, rpcURL string, txXDR string) (*SimulateTransactionResponse, error) {
+	return simulateTransaction(ctx, rpcURL, txXDR, 0)
 }
 
 // simulateTransaction calls simulateTransaction, passing resourceConfig.instructionLeeway when leeway > 0.
-func simulateTransaction(rpcURL string, txXDR string, leeway int64) (*SimulateTransactionResponse, error) {
+func simulateTransaction(ctx context.Context, rpcURL string, txXDR string, leeway int64) (*SimulateTransactionResponse, error) {
 	params := map[string]interface{}{"transaction": txXDR}
 	if leeway > 0 {
 		params["resourceConfig"] = map[string]int64{"instructionLeeway": leeway}
@@ -68,7 +73,14 @@ func simulateTransaction(rpcURL string, txXDR string, leeway int64) (*SimulateTr
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	resp, err := http.Post(rpcURL, "application/json", bytes.NewBuffer(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rpcURL, bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("failed to build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: rpcTimeout}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("rpc post failed: %w", err)
 	}
@@ -138,8 +150,8 @@ const (
 // MeasureResources simulates txXDR twice with known instruction leeways and returns the actual
 // CPU instructions used, with read/write bytes as declared by the RPC. The first simulation's
 // response is also returned for callers that need other fields from it.
-func MeasureResources(rpcURL string, txXDR string) (Resources, *SimulateTransactionResponse, error) {
-	lowResp, err := simulateTransaction(rpcURL, txXDR, measureLeewayLow)
+func MeasureResources(ctx context.Context, rpcURL string, txXDR string) (Resources, *SimulateTransactionResponse, error) {
+	lowResp, err := simulateTransaction(ctx, rpcURL, txXDR, measureLeewayLow)
 	if err != nil {
 		return Resources{}, nil, err
 	}
@@ -148,7 +160,7 @@ func MeasureResources(rpcURL string, txXDR string) (Resources, *SimulateTransact
 		return Resources{}, nil, err
 	}
 
-	highResp, err := simulateTransaction(rpcURL, txXDR, measureLeewayHigh)
+	highResp, err := simulateTransaction(ctx, rpcURL, txXDR, measureLeewayHigh)
 	if err != nil {
 		return Resources{}, nil, err
 	}

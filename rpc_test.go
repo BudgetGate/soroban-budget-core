@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/stellar/go-stellar-sdk/xdr"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 // Real transactionData returned by soroban-testnet for the balance_check fixture.
@@ -19,7 +21,7 @@ func TestSimulateTransaction_Success(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	resp, err := SimulateTransaction(ts.URL, "AAAAAAA...")
+	resp, err := SimulateTransaction(context.Background(), ts.URL, "AAAAAAA...")
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 	assert.Equal(t, testnetTxData, resp.Result.TransactionData)
@@ -33,7 +35,7 @@ func TestSimulateTransaction_NoCostField(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	resp, err := SimulateTransaction(ts.URL, "AAAAAAA...")
+	resp, err := SimulateTransaction(context.Background(), ts.URL, "AAAAAAA...")
 	assert.NoError(t, err)
 	assert.Nil(t, resp.Result.Cost)
 }
@@ -49,7 +51,7 @@ func TestSimulateTransaction_SimulationError(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	resp, err := SimulateTransaction(ts.URL, "AAAAAAA...")
+	resp, err := SimulateTransaction(context.Background(), ts.URL, "AAAAAAA...")
 	assert.ErrorContains(t, err, "HostError")
 	assert.Nil(t, resp)
 }
@@ -60,9 +62,28 @@ func TestSimulateTransaction_Error(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	resp, err := SimulateTransaction(ts.URL, "AAAAAAA...")
+	resp, err := SimulateTransaction(context.Background(), ts.URL, "AAAAAAA...")
 	assert.Error(t, err)
 	assert.Nil(t, resp)
+}
+
+func TestSimulateTransaction_ContextDeadline(t *testing.T) {
+	// A hung RPC must not block the CLI: the request fails when the context expires.
+	release := make(chan struct{})
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-release
+	}))
+	defer ts.Close()
+	defer close(release) // runs before ts.Close, which waits for the handler to return
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	resp, err := SimulateTransaction(ctx, ts.URL, "AAAAAAA...")
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Nil(t, resp)
+	assert.Less(t, time.Since(start), 5*time.Second)
 }
 
 func TestParseTransactionData(t *testing.T) {
@@ -130,7 +151,7 @@ func TestMeasureResources_RemovesPadding(t *testing.T) {
 	ts := paddingRPC(t, 91406, 50000)
 	defer ts.Close()
 
-	res, resp, err := MeasureResources(ts.URL, "AAAAAAA...")
+	res, resp, err := MeasureResources(context.Background(), ts.URL, "AAAAAAA...")
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 	assert.Equal(t, int64(91406), res.CPUInstructions)
@@ -143,7 +164,7 @@ func TestMeasureResources_PadLargerThanLeeway(t *testing.T) {
 	ts := paddingRPC(t, 91406, 1_500_000)
 	defer ts.Close()
 
-	_, _, err := MeasureResources(ts.URL, "AAAAAAA...")
+	_, _, err := MeasureResources(context.Background(), ts.URL, "AAAAAAA...")
 	assert.ErrorContains(t, err, "cannot measure exact CPU instructions")
 }
 

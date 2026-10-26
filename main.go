@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -54,7 +55,7 @@ func main() {
 
 		var funcs []FunctionCost
 		for _, f := range fixtures {
-			res, simResp, err := MeasureResources(*rpcURL, f.XDR)
+			res, simResp, err := MeasureResources(context.Background(), *rpcURL, f.XDR)
 			if err != nil {
 				fmt.Printf("Failed to measure resources for %s: %v\n", f.Name, err)
 				os.Exit(1)
