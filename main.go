@@ -54,15 +54,9 @@ func main() {
 
 		var funcs []FunctionCost
 		for _, f := range fixtures {
-			simResp, err := SimulateTransaction(*rpcURL, f.XDR)
+			res, simResp, err := MeasureResources(*rpcURL, f.XDR)
 			if err != nil {
-				fmt.Printf("RPC Error for %s: %v\n", f.Name, err)
-				os.Exit(1)
-			}
-
-			res, err := ParseTransactionData(simResp.Result.TransactionData)
-			if err != nil {
-				fmt.Printf("Failed to parse transaction data for %s: %v\n", f.Name, err)
+				fmt.Printf("Failed to measure resources for %s: %v\n", f.Name, err)
 				os.Exit(1)
 			}
 

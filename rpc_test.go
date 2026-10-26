@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/stellar/go-stellar-sdk/xdr"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
@@ -78,6 +79,54 @@ func TestParseTransactionData_Invalid(t *testing.T) {
 
 	_, err = ParseTransactionData("not-xdr")
 	assert.Error(t, err)
+}
+
+// paddingRPC mimics soroban-testnet: declared instructions are actual + max(leeway, minPad).
+func paddingRPC(t *testing.T, actual, minPad int64) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Params struct {
+				ResourceConfig struct {
+					InstructionLeeway int64 `json:"instructionLeeway"`
+				} `json:"resourceConfig"`
+			} `json:"params"`
+		}
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+
+		pad := max(req.Params.ResourceConfig.InstructionLeeway, minPad)
+		txData := xdr.SorobanTransactionData{
+			Resources: xdr.SorobanResources{
+				Instructions:  xdr.Uint32(actual + pad),
+				DiskReadBytes: 144,
+				WriteBytes:    52,
+			},
+		}
+		b64, err := xdr.MarshalBase64(txData)
+		assert.NoError(t, err)
+		w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"transactionData":"` + b64 + `"}}`))
+	}))
+}
+
+func TestMeasureResources_RemovesPadding(t *testing.T) {
+	// Values observed on soroban-testnet for the balance_check fixture.
+	ts := paddingRPC(t, 91406, 50000)
+	defer ts.Close()
+
+	res, resp, err := MeasureResources(ts.URL, "AAAAAAA...")
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Equal(t, int64(91406), res.CPUInstructions)
+	assert.Equal(t, int64(144), res.ReadBytes)
+	assert.Equal(t, int64(52), res.WriteBytes)
+}
+
+func TestMeasureResources_PadLargerThanLeeway(t *testing.T) {
+	// A provider whose minimum pad exceeds our leeway must not yield a silently wrong figure.
+	ts := paddingRPC(t, 91406, 1_500_000)
+	defer ts.Close()
+
+	_, _, err := MeasureResources(ts.URL, "AAAAAAA...")
+	assert.ErrorContains(t, err, "cannot measure exact CPU instructions")
 }
 
 func TestParseOptionalInt(t *testing.T) {

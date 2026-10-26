@@ -10,7 +10,9 @@
 ## Deep Technical Details
 
 ### XDR Parsing
-The CLI decodes the base64 `result.transactionData` returned by `simulateTransaction` into a `SorobanTransactionData` struct using the `xdr` package of the Stellar Go SDK (`github.com/stellar/go-stellar-sdk`). CPU instructions, disk read bytes and write bytes come from its `resources` field. These are the resource values the RPC recommends declaring for the transaction, so they are suitable for comparing runs against each other.
+The CLI decodes the base64 `result.transactionData` returned by `simulateTransaction` into a `SorobanTransactionData` struct using the `xdr` package of the Stellar Go SDK (`github.com/stellar/go-stellar-sdk`). CPU instructions, disk read bytes and write bytes come from its `resources` field.
+
+The instruction count the RPC declares is not raw usage: it is actual usage plus `max(instructionLeeway, minimum pad)`, where the minimum pad is set by the RPC provider (50,000 on soroban-testnet). To report actual usage, the CLI simulates each fixture twice, with `resourceConfig.instructionLeeway` set to 1,000,000 and 2,000,000. If the two declared values differ by exactly 1,000,000, the leeway was applied as-is and actual usage is the first value minus 1,000,000. If they don't, the provider pads differently and the CLI exits non-zero rather than report a wrong figure. Each fixture therefore costs two RPC calls.
 
 Memory is not part of `SorobanTransactionData`. It was only exposed through the legacy `result.cost.memBytes` field, which current RPC versions omit. When it is absent, `memory_bytes` is recorded as `null` and is never treated as a regression.
 

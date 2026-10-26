@@ -46,11 +46,21 @@ type SimulateTransactionResponse struct {
 
 // SimulateTransaction hits a Soroban RPC node to estimate resources for an XDR transaction envelope
 func SimulateTransaction(rpcURL string, txXDR string) (*SimulateTransactionResponse, error) {
+	return simulateTransaction(rpcURL, txXDR, 0)
+}
+
+// simulateTransaction calls simulateTransaction, passing resourceConfig.instructionLeeway when leeway > 0.
+func simulateTransaction(rpcURL string, txXDR string, leeway int64) (*SimulateTransactionResponse, error) {
+	params := map[string]interface{}{"transaction": txXDR}
+	if leeway > 0 {
+		params["resourceConfig"] = map[string]int64{"instructionLeeway": leeway}
+	}
+
 	reqBody := JSONRPCRequest{
 		JSONRPC: "2.0",
 		ID:      1,
 		Method:  "simulateTransaction",
-		Params:  map[string]string{"transaction": txXDR},
+		Params:  params,
 	}
 
 	payload, err := json.Marshal(reqBody)
@@ -108,6 +118,48 @@ func ParseTransactionData(b64 string) (Resources, error) {
 		ReadBytes:       int64(txData.Resources.DiskReadBytes),
 		WriteBytes:      int64(txData.Resources.WriteBytes),
 	}, nil
+}
+
+// The RPC declares instructions as actual usage plus max(instructionLeeway, a provider-configured
+// minimum pad; 50,000 on soroban-testnet). Simulating with two leeways above that pad makes the
+// declared value exactly actual+leeway, so the pad can be removed without knowing its size.
+const (
+	measureLeewayLow  int64 = 1_000_000
+	measureLeewayHigh int64 = 2_000_000
+)
+
+// MeasureResources simulates txXDR twice with known instruction leeways and returns the actual
+// CPU instructions used, with read/write bytes as declared by the RPC. The first simulation's
+// response is also returned for callers that need other fields from it.
+func MeasureResources(rpcURL string, txXDR string) (Resources, *SimulateTransactionResponse, error) {
+	lowResp, err := simulateTransaction(rpcURL, txXDR, measureLeewayLow)
+	if err != nil {
+		return Resources{}, nil, err
+	}
+	low, err := ParseTransactionData(lowResp.Result.TransactionData)
+	if err != nil {
+		return Resources{}, nil, err
+	}
+
+	highResp, err := simulateTransaction(rpcURL, txXDR, measureLeewayHigh)
+	if err != nil {
+		return Resources{}, nil, err
+	}
+	high, err := ParseTransactionData(highResp.Result.TransactionData)
+	if err != nil {
+		return Resources{}, nil, err
+	}
+
+	// If the leeway did not add exactly, the RPC pads differently than assumed (e.g. its
+	// minimum pad exceeds measureLeewayLow), and subtracting the leeway would be wrong.
+	if high.CPUInstructions-low.CPUInstructions != measureLeewayHigh-measureLeewayLow {
+		return Resources{}, nil, fmt.Errorf(
+			"cannot measure exact CPU instructions: declared %d with leeway %d and %d with leeway %d",
+			low.CPUInstructions, measureLeewayLow, high.CPUInstructions, measureLeewayHigh)
+	}
+
+	low.CPUInstructions -= measureLeewayLow
+	return low, lowResp, nil
 }
 
 // parseOptionalInt parses a numeric string, returning nil when the value is absent.
