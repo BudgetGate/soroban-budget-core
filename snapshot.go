@@ -18,6 +18,8 @@ type FunctionCost struct {
 	MemoryBytes     *int64  `json:"memory_bytes"` // nil when the RPC does not report memory
 	ReadBytes       int64   `json:"read_bytes"`
 	WriteBytes      int64   `json:"write_bytes"`
+	ReadEntries     *int64  `json:"read_entries"`  // nil in snapshots written before entry counts existed
+	WriteEntries    *int64  `json:"write_entries"` // nil in snapshots written before entry counts existed
 	PctOfNetworkCap float64 `json:"pct_of_network_cap"`
 }
 
