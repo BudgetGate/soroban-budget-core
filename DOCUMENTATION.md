@@ -22,7 +22,7 @@ Since protocol 23, live contract storage is held in memory and reading it is not
 To catch added contract-storage access, the CLI also records the size of the transaction footprint: `read_entries` (every entry the transaction touches) and `write_entries` (entries it may modify). These are compared like the other metrics.
 
 #### Fixtures
-`fixture.json` is generated with `go run ./cmd/genfixture > fixture.json`. It funds a fresh testnet account with friendbot and builds signed envelopes for a read-only call (`balance_check`) and a storage-writing call (`transfer_to_contract`) on the testnet native asset contract. Testnet is reset periodically, so rerun the generator when the fixture account no longer exists.
+`testdata/fixture.json` is generated with `go run ./cmd/genfixture > testdata/fixture.json`. It funds a fresh testnet account with friendbot and builds signed envelopes for a read-only call (`balance_check`) and a storage-writing call (`transfer_to_contract`) on the testnet native asset contract. Testnet is reset periodically, so rerun the generator when the fixture account no longer exists.
 
 A simulation that fails (the RPC returns `result.error`) or returns no `transactionData` makes the CLI exit non-zero instead of producing zero values.
 

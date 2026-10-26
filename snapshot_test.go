@@ -1,89 +1,107 @@
 package main
 
 import (
+	"encoding/json"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestParseSnapshot(t *testing.T) {
-	jsonStr := `
-	{
-		"schema_version": "1.0",
-		"network": "testnet",
-		"generated_at": "2026-08-06T12:00:00Z",
-		"commit_sha": "abc1234",
-		"functions": [
-			{
-				"name": "mint",
-				"fixture_id": "test1",
-				"cpu_instructions": 1000,
-				"memory_bytes": 500,
-				"read_bytes": 200,
-				"write_bytes": 100,
-				"pct_of_network_cap": 0.05
-			}
-		]
-	}`
-
-	r := strings.NewReader(jsonStr)
-	snapshot, err := ParseSnapshot(r)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, snapshot)
-	assert.Equal(t, "1.0", snapshot.SchemaVersion)
-	assert.Equal(t, "testnet", snapshot.Network)
-	assert.Equal(t, "abc1234", snapshot.CommitSHA)
-
-	assert.Len(t, snapshot.Functions, 1)
-	fn := snapshot.Functions[0]
-	assert.Equal(t, "mint", fn.Name)
-	assert.Equal(t, int64(1000), fn.CPUInstructions)
-	assert.Equal(t, int64(500), *fn.MemoryBytes)
-	assert.Equal(t, 0.05, fn.PctOfNetworkCap)
-}
-
-func TestParseSnapshot_NullMemory(t *testing.T) {
-	jsonStr := `{"schema_version": "1.0", "functions": [{"name": "mint", "memory_bytes": null}]}`
-	snapshot, err := ParseSnapshot(strings.NewReader(jsonStr))
-
-	assert.NoError(t, err)
-	assert.Nil(t, snapshot.Functions[0].MemoryBytes)
-}
-
-func TestParseSnapshot_SchemaVersion(t *testing.T) {
 	tests := []struct {
-		name    string
-		json    string
-		wantErr bool
+		name      string
+		json      string
+		wantErr   bool
+		wantErrIs error
+		check     func(t *testing.T, s *Snapshot)
 	}{
+		{
+			name: "1.0 snapshot with every field",
+			json: `{
+				"schema_version": "1.0",
+				"network": "testnet",
+				"generated_at": "2026-08-06T12:00:00Z",
+				"commit_sha": "abc1234",
+				"functions": [{"name": "mint", "fixture_id": "test1", "cpu_instructions": 1000, "memory_bytes": 500,
+					"read_bytes": 200, "write_bytes": 100, "pct_of_network_cap": 0.05}]
+			}`,
+			check: func(t *testing.T, s *Snapshot) {
+				assert.Equal(t, "1.0", s.SchemaVersion)
+				assert.Equal(t, "testnet", s.Network)
+				assert.Equal(t, "abc1234", s.CommitSHA)
+				require.Len(t, s.Functions, 1)
+				fn := s.Functions[0]
+				assert.Equal(t, "mint", fn.Name)
+				assert.Equal(t, int64(1000), fn.CPUInstructions)
+				assert.Equal(t, int64Ptr(500), fn.MemoryBytes)
+				assert.Equal(t, 0.05, fn.PctOfNetworkCap)
+				assert.Nil(t, fn.ReadEntries) // 1.0 snapshots may lack entry counts
+			},
+		},
+		{
+			name: "null memory and entry counts",
+			json: `{"schema_version": "2.0", "functions": [{"name": "mint", "memory_bytes": null, "read_entries": 3, "write_entries": 2}]}`,
+			check: func(t *testing.T, s *Snapshot) {
+				fn := s.Functions[0]
+				assert.Nil(t, fn.MemoryBytes)
+				assert.Equal(t, int64Ptr(3), fn.ReadEntries)
+				assert.Equal(t, int64Ptr(2), fn.WriteEntries)
+			},
+		},
 		{name: "1.0 is read", json: `{"schema_version": "1.0", "functions": []}`},
 		{name: "current version is read", json: `{"schema_version": "` + CurrentSchemaVersion + `", "functions": []}`},
-		{name: "missing version", json: `{"functions": []}`, wantErr: true},
-		{name: "empty version", json: `{"schema_version": "", "functions": []}`, wantErr: true},
-		{name: "unknown version", json: `{"schema_version": "3.0", "functions": []}`, wantErr: true},
-		{name: "unnormalised version", json: `{"schema_version": "2", "functions": []}`, wantErr: true},
+		{name: "missing version", json: `{"functions": []}`, wantErrIs: ErrUnsupportedSchema},
+		{name: "empty version", json: `{"schema_version": "", "functions": []}`, wantErrIs: ErrUnsupportedSchema},
+		{name: "unknown version", json: `{"schema_version": "3.0", "functions": []}`, wantErrIs: ErrUnsupportedSchema},
+		{name: "unnormalised version", json: `{"schema_version": "2", "functions": []}`, wantErrIs: ErrUnsupportedSchema},
+		{name: "invalid JSON", json: `{ "schema_version": "1.0", "network": }`, wantErr: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			snapshot, err := ParseSnapshot(strings.NewReader(tt.json))
-			if tt.wantErr {
-				assert.ErrorIs(t, err, ErrUnsupportedSchema)
+			if tt.wantErr || tt.wantErrIs != nil {
+				assert.Error(t, err)
+				if tt.wantErrIs != nil {
+					assert.ErrorIs(t, err, tt.wantErrIs)
+				}
 				assert.Nil(t, snapshot)
 				return
 			}
-			assert.NoError(t, err)
-			assert.NotNil(t, snapshot)
+			require.NoError(t, err)
+			require.NotNil(t, snapshot)
+			if tt.check != nil {
+				tt.check(t, snapshot)
+			}
 		})
 	}
 }
 
-func TestParseSnapshot_InvalidJSON(t *testing.T) {
-	jsonStr := `{ "schema_version": "1.0", "network": }`
-	r := strings.NewReader(jsonStr)
-	snapshot, err := ParseSnapshot(r)
+// TestTestdataSamples keeps the sample files in testdata/ readable by the current code.
+func TestTestdataSamples(t *testing.T) {
+	t.Run("fixture", func(t *testing.T) {
+		b, err := os.ReadFile(filepath.Join("testdata", "fixture.json"))
+		require.NoError(t, err)
+		var fixtures []FixtureEntry
+		require.NoError(t, json.Unmarshal(b, &fixtures))
+		require.NotEmpty(t, fixtures)
+		for _, f := range fixtures {
+			assert.NotEmpty(t, f.Name)
+			assert.NotEmpty(t, f.FixtureID)
+			assert.NotEmpty(t, f.XDR)
+		}
+	})
 
-	assert.Error(t, err)
-	assert.Nil(t, snapshot)
+	t.Run("snapshot", func(t *testing.T) {
+		f, err := os.Open(filepath.Join("testdata", "snapshot_testnet.json"))
+		require.NoError(t, err)
+		defer f.Close()
+		s, err := ParseSnapshot(f)
+		require.NoError(t, err)
+		assert.Equal(t, CurrentSchemaVersion, s.SchemaVersion)
+		assert.NotEmpty(t, s.Functions)
+	})
 }

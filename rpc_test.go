@@ -5,66 +5,117 @@ import (
 	"encoding/json"
 	"github.com/stellar/go-stellar-sdk/xdr"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
 
-// Real transactionData returned by soroban-testnet for the balance_check fixture.
-const testnetTxData = "AAAAAAAAAAIAAAAAAAAAAERy0MTnQCHX0yyz/340K5yMwzwaNKle8hPNNaniXdqcAAAABgAAAAHXkotywnA8z+r365/0701QSlWouXn8m0UOoshCtNHOYQAAABQAAAABAAAAAAACKF4AAACQAAAAAAAAAAAAABv+"
-
-func TestSimulateTransaction_Success(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-		w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"transactionData":"` + testnetTxData + `","cost":{"cpuInsns":"150000","memBytes":"2048"}}}`))
-	}))
-	defer ts.Close()
-
-	resp, err := SimulateTransaction(context.Background(), ts.URL, "AAAAAAA...")
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-	assert.Equal(t, testnetTxData, resp.Result.TransactionData)
-	assert.NotNil(t, resp.Result.Cost)
-	assert.Equal(t, "2048", resp.Result.Cost.MemoryBytes)
+// capturedResponse returns a simulateTransaction response captured from soroban-testnet
+// (see testdata/README.md).
+func capturedResponse(t *testing.T, fixture string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("testdata", "simulate_"+fixture+".json"))
+	require.NoError(t, err)
+	return b
 }
 
-func TestSimulateTransaction_NoCostField(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"transactionData":"` + testnetTxData + `"}}`))
-	}))
-	defer ts.Close()
-
-	resp, err := SimulateTransaction(context.Background(), ts.URL, "AAAAAAA...")
-	assert.NoError(t, err)
-	assert.Nil(t, resp.Result.Cost)
+// capturedTxData returns the transactionData of a captured simulateTransaction response.
+func capturedTxData(t *testing.T, fixture string) string {
+	t.Helper()
+	var resp SimulateTransactionResponse
+	require.NoError(t, json.Unmarshal(capturedResponse(t, fixture), &resp))
+	require.NotEmpty(t, resp.Result.TransactionData)
+	return resp.Result.TransactionData
 }
 
-func TestSimulateTransaction_SimulationError(t *testing.T) {
-	// A failed simulation is reported in result.error, not as a JSON-RPC error.
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"jsonrpc": "2.0",
-			"id":      1,
-			"result":  map[string]interface{}{"error": "HostError: Error(WasmVm, InvalidAction)"},
+func TestSimulateTransaction(t *testing.T) {
+	tests := []struct {
+		name    string
+		status  int
+		body    func(t *testing.T) []byte
+		wantErr string
+		check   func(t *testing.T, resp *SimulateTransactionResponse)
+	}{
+		{
+			name:   "captured balance_check response",
+			status: http.StatusOK,
+			body:   func(t *testing.T) []byte { return capturedResponse(t, "balance_check") },
+			check: func(t *testing.T, resp *SimulateTransactionResponse) {
+				assert.Equal(t, capturedTxData(t, "balance_check"), resp.Result.TransactionData)
+				assert.Nil(t, resp.Result.Cost) // current RPCs omit the legacy cost field
+			},
+		},
+		{
+			name:   "captured transfer_to_contract response",
+			status: http.StatusOK,
+			body:   func(t *testing.T) []byte { return capturedResponse(t, "transfer_to_contract") },
+			check: func(t *testing.T, resp *SimulateTransactionResponse) {
+				assert.Equal(t, capturedTxData(t, "transfer_to_contract"), resp.Result.TransactionData)
+			},
+		},
+		{
+			// Older RPCs also returned a cost field. Current testnet does not, so this body is
+			// hand-written around a captured transactionData.
+			name:   "legacy cost field",
+			status: http.StatusOK,
+			body: func(t *testing.T) []byte {
+				return []byte(`{"jsonrpc":"2.0","id":1,"result":{"transactionData":"` + capturedTxData(t, "balance_check") + `","cost":{"cpuInsns":"150000","memBytes":"2048"}}}`)
+			},
+			check: func(t *testing.T, resp *SimulateTransactionResponse) {
+				require.NotNil(t, resp.Result.Cost)
+				assert.Equal(t, "2048", resp.Result.Cost.MemoryBytes)
+			},
+		},
+		{
+			// A failed simulation is reported in result.error, not as a JSON-RPC error.
+			name:   "simulation error",
+			status: http.StatusOK,
+			body: func(t *testing.T) []byte {
+				return []byte(`{"jsonrpc":"2.0","id":1,"result":{"error":"HostError: Error(WasmVm, InvalidAction)"}}`)
+			},
+			wantErr: "HostError",
+		},
+		{
+			name:   "JSON-RPC error",
+			status: http.StatusOK,
+			body: func(t *testing.T) []byte {
+				return []byte(`{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"invalid parameters"}}`)
+			},
+			wantErr: "rpc returned error: -32602 invalid parameters",
+		},
+		{
+			// The status code is not checked; an empty body fails at decoding.
+			name:    "HTTP 500",
+			status:  http.StatusInternalServerError,
+			body:    func(t *testing.T) []byte { return nil },
+			wantErr: "decode response",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := tt.body(t)
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+				w.WriteHeader(tt.status)
+				w.Write(body)
+			}))
+			defer ts.Close()
+
+			resp, err := SimulateTransaction(context.Background(), ts.URL, "AAAAAAA...")
+			if tt.wantErr != "" {
+				assert.ErrorContains(t, err, tt.wantErr)
+				assert.Nil(t, resp)
+				return
+			}
+			require.NoError(t, err)
+			tt.check(t, resp)
 		})
-	}))
-	defer ts.Close()
-
-	resp, err := SimulateTransaction(context.Background(), ts.URL, "AAAAAAA...")
-	assert.ErrorContains(t, err, "HostError")
-	assert.Nil(t, resp)
-}
-
-func TestSimulateTransaction_Error(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer ts.Close()
-
-	resp, err := SimulateTransaction(context.Background(), ts.URL, "AAAAAAA...")
-	assert.Error(t, err)
-	assert.Nil(t, resp)
+	}
 }
 
 func TestSimulateTransaction_ContextDeadline(t *testing.T) {
@@ -87,37 +138,42 @@ func TestSimulateTransaction_ContextDeadline(t *testing.T) {
 }
 
 func TestParseTransactionData(t *testing.T) {
-	res, err := ParseTransactionData(testnetTxData)
-	assert.NoError(t, err)
-	assert.Equal(t, int64(141406), res.CPUInstructions)
-	assert.Equal(t, int64(144), res.ReadBytes)
-	assert.Equal(t, int64(0), res.WriteBytes)
-	assert.Equal(t, int64(2), res.ReadEntries) // native contract instance + source account
-	assert.Equal(t, int64(0), res.WriteEntries)
-}
+	tests := []struct {
+		name    string
+		input   func(t *testing.T) string
+		want    Resources
+		wantErr bool
+	}{
+		{
+			// Instructions include the RPC's 50,000 pad: this is the declared value.
+			// Footprint: native contract instance + source account.
+			name:  "captured balance_check",
+			input: func(t *testing.T) string { return capturedTxData(t, "balance_check") },
+			want:  Resources{CPUInstructions: 141406, ReadBytes: 144, WriteBytes: 0, ReadEntries: 2, WriteEntries: 0},
+		},
+		{
+			// The transfer also reads a 216-byte contract-data balance entry, yet ReadBytes is the
+			// same as balance_check's: live contract storage is not charged as disk reads.
+			// Writes: source account + contract balance entry.
+			name:  "captured transfer_to_contract",
+			input: func(t *testing.T) string { return capturedTxData(t, "transfer_to_contract") },
+			want:  Resources{CPUInstructions: 268663, ReadBytes: 144, WriteBytes: 368, ReadEntries: 3, WriteEntries: 2},
+		},
+		{name: "empty", input: func(t *testing.T) string { return "" }, wantErr: true},
+		{name: "not XDR", input: func(t *testing.T) string { return "not-xdr" }, wantErr: true},
+	}
 
-// Real transactionData returned by soroban-testnet for the transfer_to_contract fixture.
-const testnetTransferTxData = "AAAAAAAAAAEAAAAGAAAAAdeSi3LCcDzP6vfrn/TvTVBKVai5efybRQ6iyEK00c5hAAAAFAAAAAEAAAACAAAAAAAAAAAoKON9PeseeiJNc+mQc7AUgGCXCLXXuTxjyPIEi6aiMQAAAAYAAAAB15KLcsJwPM/q9+uf9O9NUEpVqLl5/JtFDqLIQrTRzmEAAAAQAAAAAQAAAAIAAAAPAAAAB0JhbGFuY2UAAAAAEgAAAAHXkotywnA8z+r365/0701QSlWouXn8m0UOoshCtNHOYQAAAAEABBl3AAAAkAAAAXAAAAAAAABpLA=="
-
-func TestParseTransactionData_StorageWrite(t *testing.T) {
-	res, err := ParseTransactionData(testnetTransferTxData)
-	assert.NoError(t, err)
-	assert.Equal(t, int64(268663), res.CPUInstructions) // includes the RPC's 50,000 pad
-	assert.Equal(t, int64(368), res.WriteBytes)
-	assert.Equal(t, int64(3), res.ReadEntries)
-	assert.Equal(t, int64(2), res.WriteEntries) // source account + contract balance entry
-
-	// The transfer also reads a 216-byte contract-data balance entry, yet DiskReadBytes is the
-	// same as balance_check's: live contract storage is not charged as disk reads.
-	assert.Equal(t, int64(144), res.ReadBytes)
-}
-
-func TestParseTransactionData_Invalid(t *testing.T) {
-	_, err := ParseTransactionData("")
-	assert.Error(t, err)
-
-	_, err = ParseTransactionData("not-xdr")
-	assert.Error(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := ParseTransactionData(tt.input(t))
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, res)
+		})
+	}
 }
 
 // paddingRPC mimics soroban-testnet: declared instructions are actual + max(leeway, minPad).
@@ -146,37 +202,58 @@ func paddingRPC(t *testing.T, actual, minPad int64) *httptest.Server {
 	}))
 }
 
-func TestMeasureResources_RemovesPadding(t *testing.T) {
-	// Values observed on soroban-testnet for the balance_check fixture.
-	ts := paddingRPC(t, 91406, 50000)
-	defer ts.Close()
+func TestMeasureResources(t *testing.T) {
+	tests := []struct {
+		name    string
+		minPad  int64
+		wantErr string
+	}{
+		// Pad observed on soroban-testnet for the balance_check fixture.
+		{name: "removes the provider pad", minPad: 50000},
+		// A provider whose minimum pad exceeds our leeway must not yield a silently wrong figure.
+		{name: "pad larger than leeway", minPad: 1_500_000, wantErr: "cannot measure exact CPU instructions"},
+	}
 
-	res, resp, err := MeasureResources(context.Background(), ts.URL, "AAAAAAA...")
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-	assert.Equal(t, int64(91406), res.CPUInstructions)
-	assert.Equal(t, int64(144), res.ReadBytes)
-	assert.Equal(t, int64(52), res.WriteBytes)
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := paddingRPC(t, 91406, tt.minPad)
+			defer ts.Close()
 
-func TestMeasureResources_PadLargerThanLeeway(t *testing.T) {
-	// A provider whose minimum pad exceeds our leeway must not yield a silently wrong figure.
-	ts := paddingRPC(t, 91406, 1_500_000)
-	defer ts.Close()
-
-	_, _, err := MeasureResources(context.Background(), ts.URL, "AAAAAAA...")
-	assert.ErrorContains(t, err, "cannot measure exact CPU instructions")
+			res, resp, err := MeasureResources(context.Background(), ts.URL, "AAAAAAA...")
+			if tt.wantErr != "" {
+				assert.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Equal(t, int64(91406), res.CPUInstructions)
+			assert.Equal(t, int64(144), res.ReadBytes)
+			assert.Equal(t, int64(52), res.WriteBytes)
+		})
+	}
 }
 
 func TestParseOptionalInt(t *testing.T) {
-	v, err := parseOptionalInt("")
-	assert.NoError(t, err)
-	assert.Nil(t, v)
+	tests := []struct {
+		name    string
+		input   string
+		want    *int64
+		wantErr bool
+	}{
+		{name: "empty is unknown", input: "", want: nil},
+		{name: "number", input: "2048", want: int64Ptr(2048)},
+		{name: "not a number", input: "abc", wantErr: true},
+	}
 
-	v, err = parseOptionalInt("2048")
-	assert.NoError(t, err)
-	assert.Equal(t, int64(2048), *v)
-
-	_, err = parseOptionalInt("abc")
-	assert.Error(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v, err := parseOptionalInt(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, v)
+		})
+	}
 }
