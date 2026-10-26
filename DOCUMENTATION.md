@@ -1,11 +1,11 @@
 # Soroban Budget Core - Documentation
 
-`soroban-budget-core` is a high-performance Go CLI tool designed to execute Soroban smart contracts, monitor their resource consumption (CPU instructions and Memory bytes), and detect regressions against a baseline.
+`soroban-budget-core` is a high-performance Go CLI tool designed to execute Soroban smart contracts, monitor their resource consumption (CPU instructions, read/write bytes and ledger entries), and detect regressions against a baseline.
 
 ## Architecture & Features
 *   **Dynamic Simulation**: Leverages Soroban RPC endpoints to dynamically trace transaction execution footprints.
 *   **Regression Engine**: Compares newly generated snapshots against predefined baseline JSON files.
-*   **Threshold Alerts**: Automatically detects and highlights resource spikes in `CPUInstructions`, `MemoryBytes`, `ReadBytes`, and `WriteBytes`.
+*   **Threshold Alerts**: Automatically detects and highlights resource spikes in `CPUInstructions`, `ReadBytes`, `WriteBytes`, `ReadEntries`, and `WriteEntries`.
 
 ## Deep Technical Details
 
@@ -14,7 +14,7 @@ The CLI decodes the base64 `result.transactionData` returned by `simulateTransac
 
 The instruction count the RPC declares is not raw usage: it is actual usage plus `max(instructionLeeway, minimum pad)`, where the minimum pad is set by the RPC provider (50,000 on soroban-testnet). To report actual usage, the CLI simulates each fixture twice, with `resourceConfig.instructionLeeway` set to 1,000,000 and 2,000,000. If the two declared values differ by exactly 1,000,000, the leeway was applied as-is and actual usage is the first value minus 1,000,000. If they don't, the provider pads differently and the CLI exits non-zero rather than report a wrong figure. Each fixture therefore costs two RPC calls.
 
-Memory is not part of `SorobanTransactionData`. It was only exposed through the legacy `result.cost.memBytes` field, which current RPC versions omit. When it is absent, `memory_bytes` is recorded as `null` and is never treated as a regression.
+Memory is not part of `SorobanTransactionData`. It was only exposed through the legacy `result.cost.memBytes` field, which current RPC versions omit. When it is absent, `memory_bytes` is recorded as `null`. Memory is not part of the comparison or the report, whether or not a value was recorded, until there is a reliable source for it; the field stays in the snapshot so the schema does not change when that happens.
 
 #### Read bytes and footprint entries
 Since protocol 23, live contract storage is held in memory and reading it is not charged as `diskReadBytes`. `read_bytes` therefore only changes for classic entries (accounts, trustlines) and archived entries. For example, a native-asset `transfer` to a contract reads a contract instance and a 216-byte contract-data balance entry, yet its `diskReadBytes` is the 144 bytes of the source account alone.

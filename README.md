@@ -4,7 +4,7 @@
 
 ## 🚀 Features
 
-- **Resource Tracking:** Compares CPU instructions, memory bytes, and read/write bytes. Current Soroban RPC versions no longer report memory from `simulateTransaction`, so fixture runs record `memory_bytes` as `null` and the report shows it as "NOT REPORTED".
+- **Resource Tracking:** Compares CPU instructions, read/write bytes, and the number of ledger entries read and written. Memory is not compared: current Soroban RPC versions no longer report it from `simulateTransaction`.
 - **Regression Detection:** Automatically identifies resource regressions when a new commit exceeds baseline costs by more than 10%.
 - **CI/CD Ready:** Exits with `0` on success and `1` (or another non-zero code) on regressions, making it perfect for automated workflows.
 - **Markdown Reporting:** Outputs a clean, GitHub-flavored Markdown table summarizing the differences.
@@ -35,7 +35,7 @@ Example:
 ./budget-core --baseline baseline.json --fixture fixture.json --rpc-url https://soroban-testnet.stellar.org --max-delta-pct 10.0
 ```
 
-The CLI will produce a Markdown formatted table comparing the costs and surfacing regressions if they exceed the specified `--max-delta-pct` or reach a hardcoded network absolute cap (e.g. 100M CPU, 40MB Memory).
+The CLI will produce a Markdown formatted table comparing the costs and surfacing regressions if they exceed the specified `--max-delta-pct` or reach a hardcoded network absolute cap (e.g. 100M CPU instructions).
 
 ### Example Output
 
@@ -43,7 +43,6 @@ The CLI will produce a Markdown formatted table comparing the costs and surfacin
 | Function | Metric | Baseline | New | Delta | % Change | Status |
 |----------|--------|----------|-----|-------|----------|--------|
 | mint | CPUInstructions | 1000 | 1100 | 100 | 10.00% | ❌ REGRESSION |
-| mint | MemoryBytes | 500 | 500 | 0 | 0.00% | ✅ OK |
 | mint | ReadBytes | 200 | 210 | 10 | 5.00% | ✅ OK |
 | mint | WriteBytes | 100 | 100 | 0 | 0.00% | ✅ OK |
 ```

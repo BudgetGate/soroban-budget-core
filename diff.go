@@ -26,8 +26,6 @@ func getCap(metric string) int64 {
 	switch metric {
 	case "CPUInstructions":
 		return 100_000_000
-	case "MemoryBytes":
-		return 40_000_000
 	case "ReadBytes":
 		return 10_000_000
 	case "WriteBytes":
@@ -46,8 +44,9 @@ func CompareSnapshots(baseline, newSnapshot *Snapshot, thresholds Thresholds) []
 
 	for _, newFn := range newSnapshot.Functions {
 		if baseFn, exists := baselineMap[newFn.Name]; exists {
+			// MemoryBytes is not compared: current RPCs do not report it, so it would only ever
+			// show as unavailable. It is still recorded in snapshots when an RPC provides it.
 			results = append(results, compareMetric(newFn.Name, "CPUInstructions", baseFn.CPUInstructions, newFn.CPUInstructions, thresholds))
-			results = append(results, compareOptionalMetric(newFn.Name, "MemoryBytes", baseFn.MemoryBytes, newFn.MemoryBytes, thresholds))
 			results = append(results, compareMetric(newFn.Name, "ReadBytes", baseFn.ReadBytes, newFn.ReadBytes, thresholds))
 			results = append(results, compareMetric(newFn.Name, "WriteBytes", baseFn.WriteBytes, newFn.WriteBytes, thresholds))
 			results = append(results, compareOptionalMetric(newFn.Name, "ReadEntries", baseFn.ReadEntries, newFn.ReadEntries, thresholds))
