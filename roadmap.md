@@ -21,7 +21,8 @@ Last updated: 2026-10-26 (after #9)
 - C5 done: caps are read live from the RPC on every run (`getLedgerEntries` + `getNetwork`), with no built-in fallback (lookup failure exits 2); entry counts have caps too; `--fail-on-cap-warning` makes a warning exit 1; `pct_of_network_cap` is populated. Testnet at protocol 29: CPU 400,000,000; disk read bytes 200,000; write bytes 132,096; write entries 200; footprint entries 400. The old hardcoded caps were 4×–50× off.
 - Phase 3 is done.
 - C5c done: fixture-built snapshots record `network` (from the RPC's passphrase), `generated_at` (UTC) and `commit_sha` (`--commit-sha`).
-- Next up: C6 (remove the binary, `PR_BODY.md`, `website/`), then C14 (repo docs).
+- C6 done: the broken `budget-core` binary, `PR_BODY.md` and `website/` are gone; `/budget-core` is ignored.
+- Next up: C14 (repo docs). After that only C12 (release, when the maintainer asks) and committing the counter contract remain.
 - Rule learned the hard way: do not stack PRs on feature branches. Base every PR on `main`.
 
 ## Phase 1 — Real measurement
@@ -54,7 +55,7 @@ Last updated: 2026-10-26 (after #9)
 
 - [x] C5b: report functions added to or removed from the baseline
 - [x] C5c: real `network`, `commit_sha` and `generated_at` in snapshots
-- [ ] C6: remove the committed `budget-core` binary and add it to `.gitignore`; resolve `PR_BODY.md` and `website/`
+- [x] C6: remove the committed `budget-core` binary and add it to `.gitignore`; resolve `PR_BODY.md` and `website/` (both removed)
 - [ ] C14: README, `DOCUMENTATION.md` and `CONTRIBUTING.md` match the code, or point to the docs site
 - [x] Replace placeholder `baseline.json`/`new.json` with a real snapshot (`testdata/snapshot_testnet.json`, C11)
 
