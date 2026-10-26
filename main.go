@@ -31,12 +31,33 @@ func run(args []string, stdout, stderr io.Writer) int {
 	fixturePath := fs.String("fixture", "", "Path to fixture JSON containing XDRs for simulation")
 	rpcURL := fs.String("rpc-url", "https://soroban-testnet.stellar.org", "Soroban RPC URL")
 	outputJson := fs.String("output-json", "", "Path to write the new snapshot JSON to")
-	maxDeltaPct := fs.Float64("max-delta-pct", 10.0, "Maximum allowed percentage increase in resource usage")
+	maxDeltaPct := fs.Float64("max-delta-pct", 10.0, "Maximum allowed percentage increase in resource usage (0 disables)")
+	capWarningPct := fs.Float64("cap-warning-pct", 80.0, "Warn when a metric exceeds this percentage of its network cap (0 disables)")
+	maxIncrease := map[string]*int64{
+		"CPUInstructions": fs.Int64("max-cpu-increase", 0, "Regression when CPU instructions rise by more than this (0 disables)"),
+		"ReadBytes":       fs.Int64("max-read-bytes-increase", 0, "Regression when read bytes rise by more than this (0 disables)"),
+		"WriteBytes":      fs.Int64("max-write-bytes-increase", 0, "Regression when write bytes rise by more than this (0 disables)"),
+		"ReadEntries":     fs.Int64("max-read-entries-increase", 0, "Regression when read entries rise by more than this (0 disables)"),
+		"WriteEntries":    fs.Int64("max-write-entries-increase", 0, "Regression when write entries rise by more than this (0 disables)"),
+	}
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return exitOK
 		}
 		return exitError
+	}
+
+	thresholds := Thresholds{MaxDeltaPct: *maxDeltaPct, CapWarningPct: *capWarningPct, MaxIncrease: map[string]int64{}}
+	if *maxDeltaPct < 0 || *capWarningPct < 0 {
+		fmt.Fprintln(stderr, "Thresholds must not be negative.")
+		return exitError
+	}
+	for metric, v := range maxIncrease {
+		if *v < 0 {
+			fmt.Fprintln(stderr, "Thresholds must not be negative.")
+			return exitError
+		}
+		thresholds.MaxIncrease[metric] = *v
 	}
 
 	if *baselinePath == "" {
@@ -113,7 +134,6 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 
-	thresholds := Thresholds{MaxDeltaPct: *maxDeltaPct}
 	results := CompareSnapshots(baseline, newSnapshot, thresholds)
 
 	markdown := FormatDiffs(results)

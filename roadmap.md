@@ -16,7 +16,9 @@ Last updated: 2026-10-26 (after #9)
 - C9 done: stdout carries only the Markdown report; usage, progress and errors go to stderr.
 - C13 done: a `--output-json` file that cannot be written fails the run (exit 2, error on stderr); the report is still printed.
 - C16 done: a non-200 RPC reply fails with `rpc returned HTTP <code>: <body snippet>` instead of a JSON decode error.
-- Next up: C3 and C5 (threshold flags, network caps). C5 needs the current protocol limits read from the network or official docs first (rule 4).
+- C3 done: `--cap-warning-pct` and per-metric absolute-increase flags (`--max-cpu-increase`, …); negative thresholds exit 2.
+- C5b done: added functions get `🆕 NEW` rows (values and cap usage), removed functions one `🗑️ REMOVED` row; neither fails the run.
+- Next up: C5 (network caps). Decided 2026-10-27: read caps live from the RPC each run (exit 2 if the lookup fails), skip it when `--cap-warning-pct 0`, warnings stay non-failing unless `--fail-on-cap-warning`. Testnet limits captured 2026-10-26 (protocol 29): CPU 400,000,000; disk read bytes 200,000; write bytes 132,096; write entries 200; footprint entries 400. Then C5c, C6, C14.
 - Rule learned the hard way: do not stack PRs on feature branches. Base every PR on `main`.
 
 ## Phase 1 — Real measurement
@@ -38,7 +40,7 @@ Last updated: 2026-10-26 (after #9)
 
 ## Phase 3 — Thresholds, exit codes, output
 
-- [ ] C3: flags for the cap-warning threshold and the absolute-delta threshold
+- [x] C3: flags for the cap-warning threshold and per-metric absolute-increase thresholds
 - [x] C4: exit codes 0 pass, 1 regression, 2 usage/runtime error; document in README
 - [ ] C5: read network caps from the network, record the protocol version, decide whether a cap breach fails the run, populate `pct_of_network_cap`
 - [x] C9: report on stdout only; progress and errors on stderr

@@ -22,13 +22,15 @@ func TestCompareSnapshots(t *testing.T) {
 		WriteEntries:    int64Ptr(2),
 	}
 
-	type flags struct{ regression, unavailable bool }
+	type flags struct{ regression, unavailable, capWarning bool }
 	tests := []struct {
 		name         string
 		changeBase   func(fc *FunctionCost)
 		changeNew    func(fc *FunctionCost)
 		maxDeltaPct  float64
-		want         map[string]flags // metrics not listed must be neither
+		capWarnPct   float64
+		maxIncrease  map[string]int64
+		want         map[string]flags // metrics not listed must be none of these
 		wantCPUDelta float64
 	}{
 		{
@@ -85,6 +87,56 @@ func TestCompareSnapshots(t *testing.T) {
 			maxDeltaPct:  0,
 			wantCPUDelta: 400,
 		},
+		{
+			name:         "absolute CPU increase above its limit",
+			changeNew:    func(fc *FunctionCost) { fc.CPUInstructions = 1100 },
+			maxIncrease:  map[string]int64{"CPUInstructions": 50},
+			want:         map[string]flags{"CPUInstructions": {regression: true}},
+			wantCPUDelta: 10,
+		},
+		{
+			name:         "absolute CPU increase within its limit",
+			changeNew:    func(fc *FunctionCost) { fc.CPUInstructions = 1100 },
+			maxIncrease:  map[string]int64{"CPUInstructions": 200},
+			wantCPUDelta: 10,
+		},
+		{
+			// A limit only applies to its own metric.
+			name:        "absolute limit on another metric",
+			changeNew:   func(fc *FunctionCost) { fc.ReadEntries = int64Ptr(5) },
+			maxIncrease: map[string]int64{"CPUInstructions": 1},
+		},
+		{
+			name:        "read entries above their limit",
+			changeNew:   func(fc *FunctionCost) { fc.ReadEntries = int64Ptr(5) },
+			maxIncrease: map[string]int64{"ReadEntries": 1},
+			want:        map[string]flags{"ReadEntries": {regression: true}},
+		},
+		{
+			name:        "read entries at their limit",
+			changeNew:   func(fc *FunctionCost) { fc.ReadEntries = int64Ptr(4) },
+			maxIncrease: map[string]int64{"ReadEntries": 1},
+		},
+		{
+			// 90M of the 100M CPU cap, with the default warning level.
+			name:         "cap warning at the default 80%",
+			changeBase:   func(fc *FunctionCost) { fc.CPUInstructions = 90_000_000 },
+			changeNew:    func(fc *FunctionCost) { fc.CPUInstructions = 90_000_000 },
+			capWarnPct:   80,
+			want:         map[string]flags{"CPUInstructions": {capWarning: true}},
+			wantCPUDelta: 0,
+		},
+		{
+			name:       "cap warning at a custom level",
+			capWarnPct: 0.01, // write bytes are 0.0368% of their cap; CPU and read bytes are below 0.01%
+			want:       map[string]flags{"WriteBytes": {capWarning: true}},
+		},
+		{
+			name:       "cap warning disabled",
+			changeBase: func(fc *FunctionCost) { fc.CPUInstructions = 90_000_000 },
+			changeNew:  func(fc *FunctionCost) { fc.CPUInstructions = 90_000_000 },
+			capWarnPct: 0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -100,7 +152,7 @@ func TestCompareSnapshots(t *testing.T) {
 			results := CompareSnapshots(
 				&Snapshot{Functions: []FunctionCost{baseFn}},
 				&Snapshot{Functions: []FunctionCost{newFn}},
-				Thresholds{MaxDeltaPct: tt.maxDeltaPct},
+				Thresholds{MaxDeltaPct: tt.maxDeltaPct, CapWarningPct: tt.capWarnPct, MaxIncrease: tt.maxIncrease},
 			)
 
 			var metrics []string
@@ -109,6 +161,7 @@ func TestCompareSnapshots(t *testing.T) {
 				want := tt.want[r.Metric]
 				assert.Equal(t, want.regression, r.Regression, "%s regression", r.Metric)
 				assert.Equal(t, want.unavailable, r.Unavailable, "%s unavailable", r.Metric)
+				assert.Equal(t, want.capWarning, r.CapWarning, "%s cap warning", r.Metric)
 			}
 			assert.Equal(t, []string{"CPUInstructions", "ReadBytes", "WriteBytes", "ReadEntries", "WriteEntries"}, metrics)
 			require.NotEmpty(t, results)
@@ -248,7 +301,7 @@ func TestCompareSnapshots_AddedRemoved(t *testing.T) {
 func TestCompareSnapshots_AddedFunctionValues(t *testing.T) {
 	// 90M of the 100M CPU cap: an added function still gets a cap warning.
 	added := FunctionCost{Name: "g", CPUInstructions: 90_000_000, ReadBytes: 144, WriteBytes: 0}
-	results := CompareSnapshots(&Snapshot{}, &Snapshot{Functions: []FunctionCost{added}}, Thresholds{MaxDeltaPct: 10})
+	results := CompareSnapshots(&Snapshot{}, &Snapshot{Functions: []FunctionCost{added}}, Thresholds{MaxDeltaPct: 10, CapWarningPct: 80})
 
 	require.Len(t, results, 5)
 	assert.Equal(t, int64(90_000_000), results[0].NewValue)

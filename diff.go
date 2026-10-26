@@ -4,9 +4,12 @@ import (
 	"fmt"
 )
 
+// Thresholds decide which metric changes are regressions or cap warnings. A zero value
+// disables that check.
 type Thresholds struct {
-	MaxDeltaPct float64
-	MaxAbsolute int64
+	MaxDeltaPct   float64          // regression when a metric rises by more than this percentage
+	CapWarningPct float64          // warning when a metric exceeds this percentage of its cap
+	MaxIncrease   map[string]int64 // per metric name: regression when it rises by more than this
 }
 
 type DiffResult struct {
@@ -124,7 +127,7 @@ func compareMetric(funcName, metric string, baseVal, newVal int64, thresholds Th
 	if thresholds.MaxDeltaPct > 0 && deltaPct > thresholds.MaxDeltaPct {
 		regression = true
 	}
-	if thresholds.MaxAbsolute > 0 && delta > thresholds.MaxAbsolute {
+	if limit := thresholds.MaxIncrease[metric]; limit > 0 && delta > limit {
 		regression = true
 	}
 
@@ -151,7 +154,7 @@ func capUsage(metric string, value int64, thresholds Thresholds) (float64, bool)
 		return 0, false
 	}
 	pct := (float64(value) / float64(capLimit)) * 100.0
-	return pct, pct > 80.0 // 80% of network cap is a warning
+	return pct, thresholds.CapWarningPct > 0 && pct > thresholds.CapWarningPct
 }
 
 func FormatDiffs(results []DiffResult) string {

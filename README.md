@@ -26,7 +26,19 @@ go build -o budget-core
 1. Ensure you have a baseline generated.
 2. Provide an XDR payload or fixture to test against via `--fixture` or an existing snapshot via `--new`.
 3. Provide the testnet or mainnet RPC URL via `--rpc-url`.
-4. (Optional) Provide `--max-delta-pct` (default is 10.0) to configure the regression threshold.
+4. (Optional) Tune the thresholds. Each one is off when set to `0`; negative values are rejected.
+
+| Flag | Default | Effect |
+|------|---------|--------|
+| `--max-delta-pct` | `10` | Regression when a metric rises by more than this percentage. |
+| `--max-cpu-increase` | `0` | Regression when CPU instructions rise by more than this many. |
+| `--max-read-bytes-increase` | `0` | Same for read bytes. |
+| `--max-write-bytes-increase` | `0` | Same for write bytes. |
+| `--max-read-entries-increase` | `0` | Same for read entries. |
+| `--max-write-entries-increase` | `0` | Same for write entries. |
+| `--cap-warning-pct` | `80` | `⚠️ CAP WARNING` when a metric is above this percentage of its built-in cap. A warning never fails the run. |
+
+A metric regresses if it breaks either its percentage or its absolute limit.
 
 `testdata/fixture.json` targets soroban-testnet, and `testdata/snapshot_testnet.json` is a snapshot core measured from it. After a testnet reset, regenerate the fixture with `go run ./cmd/genfixture > testdata/fixture.json` (see [`testdata/README.md`](./testdata/README.md)).
 
