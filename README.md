@@ -64,9 +64,9 @@ A row turns `❌ REGRESSION` when a metric rises more than `--max-delta-pct`, an
 |------|---------|
 | `0` | No regression. Also `-h`. |
 | `1` | At least one metric regressed. |
-| `2` | The run could not compare: bad or missing flags, unreadable or invalid files, an unsupported `schema_version`, or an RPC failure. |
+| `2` | The run could not compare: bad or missing flags, unreadable or invalid files, an unsupported `schema_version`, an RPC failure, or a `--output-json` file that could not be written. |
 
-stdout carries only the Markdown report, so it can be redirected or posted as-is. Usage, progress and error messages go to stderr; on an error, stdout is empty.
+stdout carries only the Markdown report, so it can be redirected or posted as-is. Usage, progress and error messages go to stderr; on an error, stdout is empty, except when only writing `--output-json` failed: the report is printed first, then the run exits `2`.
 
 ## 📄 JSON Schema
 

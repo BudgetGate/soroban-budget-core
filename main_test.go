@@ -71,12 +71,57 @@ func TestRunExitCodes(t *testing.T) {
 			assert.Contains(t, stderr.String(), tt.wantStderr)
 
 			// stdout carries the report and nothing else, so callers can use it as-is.
+			// (TestRunOutputJSON covers the one error that comes after the report.)
 			switch {
 			case tt.want == exitError || tt.name == "help":
 				assert.Empty(t, stdout.String())
 			default:
 				assert.True(t, strings.HasPrefix(stdout.String(), "| Function | Metric |"), "stdout: %q", stdout.String())
 			}
+		})
+	}
+}
+
+func TestRunOutputJSON(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "base.json")
+	require.NoError(t, os.WriteFile(base, []byte(`{"schema_version": "2.0", "functions": [{"name": "f", "cpu_instructions": 1000, "read_bytes": 144, "write_bytes": 52, "read_entries": 0, "write_entries": 0}]}`), 0o644))
+	fixture := filepath.Join(dir, "fixture.json")
+	require.NoError(t, os.WriteFile(fixture, []byte(`[{"name": "f", "fixture_id": "t", "xdr": "AAAA"}]`), 0o644))
+	// The fake RPC reports the same costs as base: 1,000 instructions, 144 read bytes, 52 write bytes, no entries.
+	rpc := paddingRPC(t, 1000, 50000)
+	defer rpc.Close()
+
+	tests := []struct {
+		name       string
+		out        string
+		want       int
+		wantStderr string
+	}{
+		{name: "written", out: filepath.Join(dir, "new.json"), want: exitOK},
+		{name: "directory does not exist", out: filepath.Join(dir, "missing", "new.json"), want: exitError, wantStderr: "Error writing --output-json"},
+		{name: "path is a directory", out: dir, want: exitError, wantStderr: "Error writing --output-json"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			got := run([]string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpc.URL, "--output-json", tt.out}, &stdout, &stderr)
+			assert.Equal(t, tt.want, got, "stderr: %s", stderr.String())
+			assert.Contains(t, stderr.String(), tt.wantStderr)
+			// The report is printed before the snapshot is written, so it is there either way.
+			assert.True(t, strings.HasPrefix(stdout.String(), "| Function | Metric |"), "stdout: %q", stdout.String())
+			if tt.want != exitOK {
+				return
+			}
+			f, err := os.Open(tt.out)
+			require.NoError(t, err)
+			defer f.Close()
+			s, err := ParseSnapshot(f)
+			require.NoError(t, err)
+			assert.Equal(t, CurrentSchemaVersion, s.SchemaVersion)
+			require.Len(t, s.Functions, 1)
+			assert.Equal(t, int64(1000), s.Functions[0].CPUInstructions)
 		})
 	}
 }
