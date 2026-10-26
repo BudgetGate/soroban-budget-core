@@ -11,7 +11,9 @@ Last updated: 2026-10-26 (after #9)
 - C10 done: snapshots are written as schema `2.0`; `1.0` and `2.0` are read; a missing or unknown version exits 2 with an error on stderr.
 - C11 done: test data lives in `testdata/` (captured testnet responses, the fixture, a real snapshot); tests are table-driven; the README example prints a full report.
 - C15 done: `.gitattributes` keeps text files LF, so `gofmt -l .` works on Windows.
-- Phase 2 is done except committing the counter contract. Next up: phase 3, starting with C4 (exit codes), which A8 in the Action waits on.
+- Phase 2 is done except committing the counter contract.
+- C4 done: exit codes 0 pass, 1 regression, 2 error; `run()` is unit-tested per exit path. The Action's A8 is unblocked.
+- Next up: C9 (report on stdout only, messages on stderr), then C13, C16.
 - Rule learned the hard way: do not stack PRs on feature branches. Base every PR on `main`.
 
 ## Phase 1 — Real measurement
@@ -34,7 +36,7 @@ Last updated: 2026-10-26 (after #9)
 ## Phase 3 — Thresholds, exit codes, output
 
 - [ ] C3: flags for the cap-warning threshold and the absolute-delta threshold
-- [ ] C4: exit codes 0 pass, 1 regression, 2 usage/runtime error; document in README
+- [x] C4: exit codes 0 pass, 1 regression, 2 usage/runtime error; document in README
 - [ ] C5: read network caps from the network, record the protocol version, decide whether a cap breach fails the run, populate `pct_of_network_cap`
 - [ ] C9: report on stdout only; progress and errors on stderr
 - [ ] C13: fail with a clear error when `--output-json` cannot be written
