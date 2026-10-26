@@ -201,6 +201,21 @@ func TestFormatDiffs(t *testing.T) {
 			res:  DiffResult{FunctionName: "mint", Metric: "ReadEntries", Unavailable: true},
 			want: "| mint | ReadEntries | n/a | n/a | n/a | n/a | n/a | ➖ NOT REPORTED |",
 		},
+		{
+			name: "added",
+			res:  DiffResult{FunctionName: "burn", Metric: "CPUInstructions", NewValue: 91406, AbsoluteCapPct: 0.09, Added: true},
+			want: "| burn | CPUInstructions | n/a | 91406 | n/a | n/a | 0.09% | 🆕 NEW |",
+		},
+		{
+			name: "added near the cap",
+			res:  DiffResult{FunctionName: "burn", Metric: "CPUInstructions", NewValue: 90000000, AbsoluteCapPct: 90, CapWarning: true, Added: true},
+			want: "| burn | CPUInstructions | n/a | 90000000 | n/a | n/a | 90.00% | 🆕 NEW & ⚠️ CAP WARNING |",
+		},
+		{
+			name: "removed",
+			res:  DiffResult{FunctionName: "mint", Removed: true},
+			want: "| mint | — | n/a | n/a | n/a | n/a | n/a | 🗑️ REMOVED |",
+		},
 	}
 
 	for _, tt := range tests {
@@ -210,4 +225,90 @@ func TestFormatDiffs(t *testing.T) {
 			assert.Contains(t, markdown, tt.want)
 		})
 	}
+}
+
+func TestCompareSnapshots_AddedRemoved(t *testing.T) {
+	fn := func(name string, cpu int64) FunctionCost {
+		return FunctionCost{Name: name, CPUInstructions: cpu, ReadBytes: 144, WriteBytes: 368, ReadEntries: int64Ptr(3), WriteEntries: int64Ptr(2)}
+	}
+
+	type row struct {
+		function string
+		metric   string
+		added    bool
+		removed  bool
+	}
+	tests := []struct {
+		name     string
+		baseline []FunctionCost
+		newFns   []FunctionCost
+		want     []row // in report order
+	}{
+		{
+			name:     "function added",
+			baseline: []FunctionCost{fn("f", 1000)},
+			newFns:   []FunctionCost{fn("f", 1000), fn("g", 5000)},
+			want: []row{
+				{"f", "CPUInstructions", false, false}, {"f", "ReadBytes", false, false}, {"f", "WriteBytes", false, false}, {"f", "ReadEntries", false, false}, {"f", "WriteEntries", false, false},
+				{"g", "CPUInstructions", true, false}, {"g", "ReadBytes", true, false}, {"g", "WriteBytes", true, false}, {"g", "ReadEntries", true, false}, {"g", "WriteEntries", true, false},
+			},
+		},
+		{
+			name:     "function removed",
+			baseline: []FunctionCost{fn("f", 1000), fn("g", 5000)},
+			newFns:   []FunctionCost{fn("f", 1000)},
+			want: []row{
+				{"f", "CPUInstructions", false, false}, {"f", "ReadBytes", false, false}, {"f", "WriteBytes", false, false}, {"f", "ReadEntries", false, false}, {"f", "WriteEntries", false, false},
+				{"g", "", false, true},
+			},
+		},
+		{
+			// A rename shows as one added and one removed function, so it cannot pass unnoticed.
+			name:     "function renamed",
+			baseline: []FunctionCost{fn("f", 1000)},
+			newFns:   []FunctionCost{fn("f2", 1000)},
+			want: []row{
+				{"f2", "CPUInstructions", true, false}, {"f2", "ReadBytes", true, false}, {"f2", "WriteBytes", true, false}, {"f2", "ReadEntries", true, false}, {"f2", "WriteEntries", true, false},
+				{"f", "", false, true},
+			},
+		},
+		{
+			name:     "empty baseline",
+			baseline: nil,
+			newFns:   []FunctionCost{fn("f", 1000)},
+			want: []row{
+				{"f", "CPUInstructions", true, false}, {"f", "ReadBytes", true, false}, {"f", "WriteBytes", true, false}, {"f", "ReadEntries", true, false}, {"f", "WriteEntries", true, false},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results := CompareSnapshots(&Snapshot{Functions: tt.baseline}, &Snapshot{Functions: tt.newFns}, Thresholds{MaxDeltaPct: 10})
+			var got []row
+			for _, r := range results {
+				got = append(got, row{r.FunctionName, r.Metric, r.Added, r.Removed})
+				// Neither an added nor a removed function is a regression.
+				if r.Added || r.Removed {
+					assert.False(t, r.Regression, "%s %s", r.FunctionName, r.Metric)
+				}
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestCompareSnapshots_AddedFunctionValues(t *testing.T) {
+	// 90M of the 100M CPU cap: an added function still gets a cap warning.
+	added := FunctionCost{Name: "g", CPUInstructions: 90_000_000, ReadBytes: 144, WriteBytes: 0}
+	results := CompareSnapshots(&Snapshot{}, &Snapshot{Functions: []FunctionCost{added}}, Thresholds{MaxDeltaPct: 10, CapWarningPct: 80})
+
+	require.Len(t, results, 5)
+	assert.Equal(t, int64(90_000_000), results[0].NewValue)
+	assert.InDelta(t, 90.0, results[0].AbsoluteCapPct, 1e-9)
+	assert.True(t, results[0].CapWarning)
+	assert.False(t, results[1].CapWarning)
+	// Entry counts missing from the new snapshot (e.g. a 1.0 file) are reported as unavailable.
+	assert.True(t, results[3].Unavailable && results[3].Added)
+	assert.True(t, results[4].Unavailable && results[4].Added)
 }

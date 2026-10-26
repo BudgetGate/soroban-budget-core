@@ -17,7 +17,8 @@ Last updated: 2026-10-26 (after #9)
 - C13 done: a `--output-json` file that cannot be written fails the run (exit 2, error on stderr); the report is still printed.
 - C16 done: a non-200 RPC reply fails with `rpc returned HTTP <code>: <body snippet>` instead of a JSON decode error.
 - C3 done: `--cap-warning-pct` and per-metric absolute-increase flags (`--max-cpu-increase`, …); negative thresholds exit 2.
-- Next up: C5 (network caps). Blocked on two maintainer decisions: caps read live from the RPC or recorded at implementation time, and whether a cap breach fails the run. Phase 4 items (C5b, C5c, C6, C14) do not depend on C5.
+- C5b done: added functions get `🆕 NEW` rows (values and cap usage), removed functions one `🗑️ REMOVED` row; neither fails the run.
+- Next up: C5 (network caps). Decided 2026-10-27: read caps live from the RPC each run (exit 2 if the lookup fails), skip it when `--cap-warning-pct 0`, warnings stay non-failing unless `--fail-on-cap-warning`. Testnet limits captured 2026-10-26 (protocol 29): CPU 400,000,000; disk read bytes 200,000; write bytes 132,096; write entries 200; footprint entries 400. Then C5c, C6, C14.
 - Rule learned the hard way: do not stack PRs on feature branches. Base every PR on `main`.
 
 ## Phase 1 — Real measurement
@@ -48,7 +49,7 @@ Last updated: 2026-10-26 (after #9)
 
 ## Phase 4 — Correct reports and a clean repo
 
-- [ ] C5b: report functions added to or removed from the baseline
+- [x] C5b: report functions added to or removed from the baseline
 - [ ] C5c: real `network`, `commit_sha` and `generated_at` in snapshots
 - [ ] C6: remove the committed `budget-core` binary and add it to `.gitignore`; resolve `PR_BODY.md` and `website/`
 - [ ] C14: README, `DOCUMENTATION.md` and `CONTRIBUTING.md` match the code, or point to the docs site
