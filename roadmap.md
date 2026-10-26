@@ -47,7 +47,7 @@ Last updated: 2026-10-26 (after #9)
 
 ## Phase 4 — Correct reports and a clean repo
 
-- [ ] C5b: report functions added to or removed from the baseline
+- [x] C5b: report functions added to or removed from the baseline
 - [ ] C5c: real `network`, `commit_sha` and `generated_at` in snapshots
 - [ ] C6: remove the committed `budget-core` binary and add it to `.gitignore`; resolve `PR_BODY.md` and `website/`
 - [ ] C14: README, `DOCUMENTATION.md` and `CONTRIBUTING.md` match the code, or point to the docs site

@@ -23,6 +23,7 @@ func TestRunExitCodes(t *testing.T) {
 	snapshot := `{"schema_version": "2.0", "functions": [{"name": "f", "cpu_instructions": 1000, "read_bytes": 144, "write_bytes": 0, "read_entries": 2, "write_entries": 0}]}`
 	base := write("base.json", snapshot)
 	same := write("same.json", snapshot)
+	withExtra := write("extra.json", `{"schema_version": "2.0", "functions": [{"name": "f", "cpu_instructions": 1000, "read_bytes": 144, "write_bytes": 0, "read_entries": 2, "write_entries": 0}, {"name": "g", "cpu_instructions": 5000, "read_bytes": 144, "write_bytes": 0, "read_entries": 2, "write_entries": 0}]}`)
 	regressed := write("regressed.json", `{"schema_version": "2.0", "functions": [{"name": "f", "cpu_instructions": 2000, "read_bytes": 144, "write_bytes": 0, "read_entries": 2, "write_entries": 0}]}`)
 	badJSON := write("bad.json", `{bad`)
 	badVersion := write("v3.json", `{"schema_version": "3.0", "functions": []}`)
@@ -47,6 +48,8 @@ func TestRunExitCodes(t *testing.T) {
 		{name: "help", args: []string{"-h"}, want: exitOK},
 		{name: "no change", args: []string{"--baseline", base, "--new", same}, want: exitOK, wantStdout: "| f | CPUInstructions | 1000 | 1000 |"},
 		{name: "regression", args: []string{"--baseline", base, "--new", regressed}, want: exitRegression, wantStdout: "❌ REGRESSION"},
+		{name: "function added", args: []string{"--baseline", base, "--new", withExtra}, want: exitOK, wantStdout: "| g | CPUInstructions | n/a | 5000 | n/a | n/a | 0.01% | 🆕 NEW |"},
+		{name: "function removed", args: []string{"--baseline", withExtra, "--new", same}, want: exitOK, wantStdout: "| g | — | n/a | n/a | n/a | n/a | n/a | 🗑️ REMOVED |"},
 		{name: "threshold above the rise", args: []string{"--baseline", base, "--new", regressed, "--max-delta-pct", "150"}, want: exitOK},
 		{name: "no arguments", args: nil, want: exitError, wantStderr: "Usage:"},
 		{name: "undefined flag", args: []string{"--bogus"}, want: exitError, wantStderr: "flag provided but not defined"},
