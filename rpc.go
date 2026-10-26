@@ -41,35 +41,16 @@ type SimulateTransactionResponse struct {
 		// Error is set when the simulation itself failed (e.g. a contract panic).
 		Error string `json:"error"`
 	} `json:"result,omitempty"`
-	Error *struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-	} `json:"error,omitempty"`
+	Error *rpcError `json:"error,omitempty"`
 }
 
-// rpcTimeout bounds a single simulateTransaction round trip, including reading the response.
+// rpcTimeout bounds a single RPC round trip, including reading the response.
 const rpcTimeout = 30 * time.Second
 
-// SimulateTransaction hits a Soroban RPC node to estimate resources for an XDR transaction envelope
-func SimulateTransaction(ctx context.Context, rpcURL string, txXDR string) (*SimulateTransactionResponse, error) {
-	return simulateTransaction(ctx, rpcURL, txXDR, 0)
-}
-
-// simulateTransaction calls simulateTransaction, passing resourceConfig.instructionLeeway when leeway > 0.
-func simulateTransaction(ctx context.Context, rpcURL string, txXDR string, leeway int64) (*SimulateTransactionResponse, error) {
-	params := map[string]interface{}{"transaction": txXDR}
-	if leeway > 0 {
-		params["resourceConfig"] = map[string]int64{"instructionLeeway": leeway}
-	}
-
-	reqBody := JSONRPCRequest{
-		JSONRPC: "2.0",
-		ID:      1,
-		Method:  "simulateTransaction",
-		Params:  params,
-	}
-
-	payload, err := json.Marshal(reqBody)
+// postJSONRPC sends one JSON-RPC request and returns the response body. A non-200 status is an
+// error; decoding the body, including any JSON-RPC error, is left to the caller.
+func postJSONRPC(ctx context.Context, rpcURL, method string, params interface{}) ([]byte, error) {
+	payload, err := json.Marshal(JSONRPCRequest{JSONRPC: "2.0", ID: 1, Method: method, Params: params})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
@@ -96,6 +77,35 @@ func simulateTransaction(ctx context.Context, rpcURL string, txXDR string, leewa
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("rpc returned HTTP %d: %s", resp.StatusCode, bodySnippet(bodyBytes))
 	}
+	return bodyBytes, nil
+}
+
+// rpcError is the JSON-RPC error object.
+type rpcError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+func (e *rpcError) Error() string {
+	return fmt.Sprintf("rpc returned error: %d %s", e.Code, e.Message)
+}
+
+// SimulateTransaction hits a Soroban RPC node to estimate resources for an XDR transaction envelope
+func SimulateTransaction(ctx context.Context, rpcURL string, txXDR string) (*SimulateTransactionResponse, error) {
+	return simulateTransaction(ctx, rpcURL, txXDR, 0)
+}
+
+// simulateTransaction calls simulateTransaction, passing resourceConfig.instructionLeeway when leeway > 0.
+func simulateTransaction(ctx context.Context, rpcURL string, txXDR string, leeway int64) (*SimulateTransactionResponse, error) {
+	params := map[string]interface{}{"transaction": txXDR}
+	if leeway > 0 {
+		params["resourceConfig"] = map[string]int64{"instructionLeeway": leeway}
+	}
+
+	bodyBytes, err := postJSONRPC(ctx, rpcURL, "simulateTransaction", params)
+	if err != nil {
+		return nil, err
+	}
 
 	var simResp SimulateTransactionResponse
 	if err := json.Unmarshal(bodyBytes, &simResp); err != nil {
@@ -103,7 +113,7 @@ func simulateTransaction(ctx context.Context, rpcURL string, txXDR string, leewa
 	}
 
 	if simResp.Error != nil {
-		return nil, fmt.Errorf("rpc returned error: %d %s", simResp.Error.Code, simResp.Error.Message)
+		return nil, simResp.Error
 	}
 
 	if simResp.Result.Error != "" {

@@ -33,6 +33,7 @@ This schema represents the JSON contract output by `soroban-budget-core`. It is 
 - `functions[].memory_bytes`: May be `null` when the RPC did not report memory usage (current `simulateTransaction` responses do not). Consumers must treat `null` as "unknown", not as `0`. `soroban-budget-core` does not currently compare or report this field.
 - `functions[].read_bytes`: The RPC's `diskReadBytes`. Since protocol 23 this covers only classic and archived entries; reads of live contract storage are **not** included.
 - `functions[].read_entries` / `functions[].write_entries`: Number of ledger entries in the transaction footprint (all entries / read-write entries). These are the signal for added contract-storage access. They are `null` (or absent) in snapshots written before they were introduced, and comparisons against such a baseline show them as not reported.
+- `functions[].pct_of_network_cap`: The highest percentage of any metric's per-transaction network limit that the function uses (CPU of `txMaxInstructions`, read bytes of `txMaxDiskReadBytes`, write bytes of `txMaxWriteBytes`, read entries of `txMaxFootprintEntries`, write entries of `txMaxWriteLedgerEntries`), with the limits read from the network when the snapshot was measured. `0` in snapshots written before core read network caps, and in snapshots not built from a fixture. Informational: comparisons use the live caps, not this field.
 
 ## Versions
 

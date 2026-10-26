@@ -13,7 +13,7 @@
       "write_bytes": 0,
       "read_entries": 2,
       "write_entries": 0,
-      "pct_of_network_cap": 0
+      "pct_of_network_cap": 0.5
     },
     {
       "name": "transfer_to_contract",
@@ -24,7 +24,7 @@
       "write_bytes": 368,
       "read_entries": 3,
       "write_entries": 2,
-      "pct_of_network_cap": 0
+      "pct_of_network_cap": 1
     }
   ]
 }

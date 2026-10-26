@@ -10,6 +10,7 @@ type Thresholds struct {
 	MaxDeltaPct   float64          // regression when a metric rises by more than this percentage
 	CapWarningPct float64          // warning when a metric exceeds this percentage of its cap
 	MaxIncrease   map[string]int64 // per metric name: regression when it rises by more than this
+	NetworkCaps   map[string]int64 // per metric name: the network's per-transaction limit; nil when not read
 }
 
 type DiffResult struct {
@@ -20,23 +21,12 @@ type DiffResult struct {
 	Delta          int64
 	DeltaPct       float64
 	AbsoluteCapPct float64
+	HasCap         bool // the network cap for this metric is known, so AbsoluteCapPct is meaningful
 	Regression     bool
 	CapWarning     bool
 	Unavailable    bool // metric missing from the baseline or the new snapshot
 	Added          bool // function is not in the baseline; only NewValue and the cap figures apply
 	Removed        bool // function is in the baseline but not in the new snapshot; one row, no metric
-}
-
-func getCap(metric string) int64 {
-	switch metric {
-	case "CPUInstructions":
-		return 100_000_000
-	case "ReadBytes":
-		return 10_000_000
-	case "WriteBytes":
-		return 1_000_000
-	}
-	return 0
 }
 
 func CompareSnapshots(baseline, newSnapshot *Snapshot, thresholds Thresholds) []DiffResult {
@@ -94,12 +84,13 @@ func addedFunction(fn FunctionCost, thresholds Thresholds) []DiffResult {
 			results = append(results, DiffResult{FunctionName: fn.Name, Metric: v.metric, Added: true, Unavailable: true})
 			continue
 		}
-		capPct, capWarning := capUsage(v.metric, *v.value, thresholds)
+		capPct, hasCap, capWarning := capUsage(v.metric, *v.value, thresholds)
 		results = append(results, DiffResult{
 			FunctionName:   fn.Name,
 			Metric:         v.metric,
 			NewValue:       *v.value,
 			AbsoluteCapPct: capPct,
+			HasCap:         hasCap,
 			CapWarning:     capWarning,
 			Added:          true,
 		})
@@ -131,7 +122,7 @@ func compareMetric(funcName, metric string, baseVal, newVal int64, thresholds Th
 		regression = true
 	}
 
-	absCapPct, capWarning := capUsage(metric, newVal, thresholds)
+	absCapPct, hasCap, capWarning := capUsage(metric, newVal, thresholds)
 
 	return DiffResult{
 		FunctionName:   funcName,
@@ -141,20 +132,49 @@ func compareMetric(funcName, metric string, baseVal, newVal int64, thresholds Th
 		Delta:          delta,
 		DeltaPct:       deltaPct,
 		AbsoluteCapPct: absCapPct,
+		HasCap:         hasCap,
 		Regression:     regression,
 		CapWarning:     capWarning,
 	}
 }
 
-// capUsage returns value as a percentage of the metric's cap, and whether that is high enough
-// to warn about. Metrics without a cap return 0, false.
-func capUsage(metric string, value int64, thresholds Thresholds) (float64, bool) {
-	capLimit := getCap(metric)
+// capUsage returns value as a percentage of the metric's network cap, whether that cap is known,
+// and whether the percentage is high enough to warn about.
+func capUsage(metric string, value int64, thresholds Thresholds) (pct float64, hasCap, warning bool) {
+	capLimit := thresholds.NetworkCaps[metric]
 	if capLimit <= 0 {
-		return 0, false
+		return 0, false, false
 	}
-	pct := (float64(value) / float64(capLimit)) * 100.0
-	return pct, thresholds.CapWarningPct > 0 && pct > thresholds.CapWarningPct
+	pct = (float64(value) / float64(capLimit)) * 100.0
+	return pct, true, thresholds.CapWarningPct > 0 && pct > thresholds.CapWarningPct
+}
+
+// pctOfNetworkCap is the highest share of any metric's per-transaction cap that fn uses: how
+// close it is to the limit that would make the transaction fail.
+func pctOfNetworkCap(fn FunctionCost, caps map[string]int64) float64 {
+	values := map[string]*int64{
+		"CPUInstructions": &fn.CPUInstructions,
+		"ReadBytes":       &fn.ReadBytes,
+		"WriteBytes":      &fn.WriteBytes,
+		"ReadEntries":     fn.ReadEntries,
+		"WriteEntries":    fn.WriteEntries,
+	}
+	var highest float64
+	for metric, v := range values {
+		if v == nil || caps[metric] <= 0 {
+			continue
+		}
+		highest = max(highest, float64(*v)/float64(caps[metric])*100.0)
+	}
+	return highest
+}
+
+// formatCapPct renders the % of Cap column: n/a when the network cap was not read.
+func formatCapPct(res DiffResult) string {
+	if !res.HasCap {
+		return "n/a"
+	}
+	return fmt.Sprintf("%.2f%%", res.AbsoluteCapPct)
 }
 
 func FormatDiffs(results []DiffResult) string {
@@ -175,8 +195,8 @@ func FormatDiffs(results []DiffResult) string {
 			if res.CapWarning {
 				status = "🆕 NEW & ⚠️ CAP WARNING"
 			}
-			markdown += fmt.Sprintf("| %s | %s | n/a | %d | n/a | n/a | %.2f%% | %s |\n",
-				res.FunctionName, res.Metric, res.NewValue, res.AbsoluteCapPct, status)
+			markdown += fmt.Sprintf("| %s | %s | n/a | %d | n/a | n/a | %s | %s |\n",
+				res.FunctionName, res.Metric, res.NewValue, formatCapPct(res), status)
 			continue
 		}
 
@@ -189,8 +209,8 @@ func FormatDiffs(results []DiffResult) string {
 			status = "⚠️ CAP WARNING"
 		}
 
-		markdown += fmt.Sprintf("| %s | %s | %d | %d | %d | %.2f%% | %.2f%% | %s |\n",
-			res.FunctionName, res.Metric, res.BaselineValue, res.NewValue, res.Delta, res.DeltaPct, res.AbsoluteCapPct, status)
+		markdown += fmt.Sprintf("| %s | %s | %d | %d | %d | %.2f%% | %s | %s |\n",
+			res.FunctionName, res.Metric, res.BaselineValue, res.NewValue, res.Delta, res.DeltaPct, formatCapPct(res), status)
 	}
 
 	return markdown

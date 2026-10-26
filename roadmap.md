@@ -18,7 +18,8 @@ Last updated: 2026-10-26 (after #9)
 - C16 done: a non-200 RPC reply fails with `rpc returned HTTP <code>: <body snippet>` instead of a JSON decode error.
 - C3 done: `--cap-warning-pct` and per-metric absolute-increase flags (`--max-cpu-increase`, …); negative thresholds exit 2.
 - C5b done: added functions get `🆕 NEW` rows (values and cap usage), removed functions one `🗑️ REMOVED` row; neither fails the run.
-- Next up: C5 (network caps). Decided 2026-10-27: read caps live from the RPC each run (exit 2 if the lookup fails), skip it when `--cap-warning-pct 0`, warnings stay non-failing unless `--fail-on-cap-warning`. Testnet limits captured 2026-10-26 (protocol 29): CPU 400,000,000; disk read bytes 200,000; write bytes 132,096; write entries 200; footprint entries 400. Then C5c, C6, C14.
+- C5 done: caps are read live from the RPC on every run (`getLedgerEntries` + `getNetwork`), with no built-in fallback (lookup failure exits 2); entry counts have caps too; `--fail-on-cap-warning` makes a warning exit 1; `pct_of_network_cap` is populated. Testnet at protocol 29: CPU 400,000,000; disk read bytes 200,000; write bytes 132,096; write entries 200; footprint entries 400. The old hardcoded caps were 4×–50× off.
+- Phase 3 is done. Next up: phase 4: C5c (real snapshot metadata), C6 (remove the binary, `PR_BODY.md`, `website/`), C14 (repo docs).
 - Rule learned the hard way: do not stack PRs on feature branches. Base every PR on `main`.
 
 ## Phase 1 — Real measurement
@@ -42,7 +43,7 @@ Last updated: 2026-10-26 (after #9)
 
 - [x] C3: flags for the cap-warning threshold and per-metric absolute-increase thresholds
 - [x] C4: exit codes 0 pass, 1 regression, 2 usage/runtime error; document in README
-- [ ] C5: read network caps from the network, record the protocol version, decide whether a cap breach fails the run, populate `pct_of_network_cap`
+- [x] C5: read network caps from the network, record the protocol version, decide whether a cap breach fails the run (no, unless `--fail-on-cap-warning`), populate `pct_of_network_cap`
 - [x] C9: report on stdout only; progress and errors on stderr
 - [x] C13: fail with a clear error when `--output-json` cannot be written
 - [x] C16: check the RPC's HTTP status and report it

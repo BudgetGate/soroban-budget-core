@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -37,6 +39,22 @@ func TestRunExitCodes(t *testing.T) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer rpcDown.Close()
+	// Serves network caps but fails every simulation.
+	rpcSimFails := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Method string `json:"method"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		switch req.Method {
+		case "getLedgerEntries":
+			w.Write(capturedFile(t, "getledgerentries_config.json"))
+		case "getNetwork":
+			w.Write(capturedFile(t, "getnetwork.json"))
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer rpcSimFails.Close()
 
 	tests := []struct {
 		name       string
@@ -48,12 +66,12 @@ func TestRunExitCodes(t *testing.T) {
 		{name: "help", args: []string{"-h"}, want: exitOK},
 		{name: "no change", args: []string{"--baseline", base, "--new", same}, want: exitOK, wantStdout: "| f | CPUInstructions | 1000 | 1000 |"},
 		{name: "regression", args: []string{"--baseline", base, "--new", regressed}, want: exitRegression, wantStdout: "❌ REGRESSION"},
-		{name: "function added", args: []string{"--baseline", base, "--new", withExtra}, want: exitOK, wantStdout: "| g | CPUInstructions | n/a | 5000 | n/a | n/a | 0.01% | 🆕 NEW |"},
+		{name: "function added", args: []string{"--baseline", base, "--new", withExtra}, want: exitOK, wantStdout: "| g | ReadEntries | n/a | 2 | n/a | n/a | 0.50% | 🆕 NEW |"},
 		{name: "function removed", args: []string{"--baseline", withExtra, "--new", same}, want: exitOK, wantStdout: "| g | — | n/a | n/a | n/a | n/a | n/a | 🗑️ REMOVED |"},
 		{name: "threshold above the rise", args: []string{"--baseline", base, "--new", regressed, "--max-delta-pct", "150"}, want: exitOK},
 		{name: "absolute CPU limit exceeded", args: []string{"--baseline", base, "--new", regressed, "--max-delta-pct", "0", "--max-cpu-increase", "500"}, want: exitRegression, wantStdout: "❌ REGRESSION"},
 		{name: "absolute CPU limit not exceeded", args: []string{"--baseline", base, "--new", regressed, "--max-delta-pct", "0", "--max-cpu-increase", "5000"}, want: exitOK},
-		{name: "cap warning level from flag", args: []string{"--baseline", base, "--new", same, "--cap-warning-pct", "0.0001"}, want: exitOK, wantStdout: "⚠️ CAP WARNING"},
+		{name: "cap warning level from flag (does not fail by default)", args: []string{"--baseline", base, "--new", same, "--cap-warning-pct", "0.0001"}, want: exitOK, wantStdout: "⚠️ CAP WARNING"},
 		{name: "negative threshold", args: []string{"--baseline", base, "--new", same, "--max-read-entries-increase", "-1"}, want: exitError, wantStderr: "Thresholds must not be negative."},
 		{name: "no arguments", args: nil, want: exitError, wantStderr: "Usage:"},
 		{name: "undefined flag", args: []string{"--bogus"}, want: exitError, wantStderr: "flag provided but not defined"},
@@ -65,14 +83,26 @@ func TestRunExitCodes(t *testing.T) {
 		{name: "unsupported new version", args: []string{"--baseline", base, "--new", badVersion}, want: exitError, wantStderr: "Error reading new snapshot"},
 		{name: "missing fixture", args: []string{"--baseline", base, "--fixture", missing, "--rpc-url", rpcOK.URL}, want: exitError, wantStderr: "Error opening fixture"},
 		{name: "invalid fixture JSON", args: []string{"--baseline", base, "--fixture", badJSON, "--rpc-url", rpcOK.URL}, want: exitError, wantStderr: "Error decoding fixture JSON"},
-		{name: "RPC failure", args: []string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpcDown.URL}, want: exitError, wantStderr: "Failed to measure resources for f"},
+		{name: "RPC failure", args: []string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpcSimFails.URL}, want: exitError, wantStderr: "Failed to measure resources for f"},
+		{name: "network caps unavailable, fixture", args: []string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpcDown.URL}, want: exitError, wantStderr: "Error reading network caps"},
+		{name: "network caps unavailable, --new", args: []string{"--baseline", base, "--new", same, "--rpc-url", rpcDown.URL}, want: exitError, wantStderr: "Error reading network caps"},
+		{name: "offline --new with cap warnings off", args: []string{"--baseline", base, "--new", same, "--cap-warning-pct", "0", "--rpc-url", rpcDown.URL}, want: exitOK, wantStdout: "| f | CPUInstructions | 1000 | 1000 | 0 | 0.00% | n/a | ✅ OK |"},
+		{name: "cap warning fails with --fail-on-cap-warning", args: []string{"--baseline", base, "--new", same, "--cap-warning-pct", "0.0001", "--fail-on-cap-warning"}, want: exitRegression, wantStdout: "⚠️ CAP WARNING", wantStderr: "--fail-on-cap-warning is set"},
+		{name: "no cap warning with --fail-on-cap-warning", args: []string{"--baseline", base, "--new", same, "--fail-on-cap-warning"}, want: exitOK},
+		{name: "--fail-on-cap-warning without warnings enabled", args: []string{"--baseline", base, "--new", same, "--cap-warning-pct", "0", "--fail-on-cap-warning"}, want: exitError, wantStderr: "--fail-on-cap-warning needs --cap-warning-pct above 0."},
+		{name: "caps provenance under the table", args: []string{"--baseline", base, "--new", same}, want: exitOK, wantStdout: "% of Cap uses the network's per-transaction limits at protocol 29, ledger 5406471."},
 		{name: "fixture regresses", args: []string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpcOK.URL}, want: exitRegression, wantStdout: "| f | CPUInstructions | 1000 | 91406 |", wantStderr: "Simulating transactions from fixture"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Point every run at the fake RPC unless the case picks its own, so no test reaches the network.
+			args := tt.args
+			if !slices.Contains(args, "--rpc-url") {
+				args = append(slices.Clone(args), "--rpc-url", rpcOK.URL)
+			}
 			var stdout, stderr bytes.Buffer
-			got := run(tt.args, &stdout, &stderr)
+			got := run(args, &stdout, &stderr)
 			assert.Equal(t, tt.want, got, "stdout: %s\nstderr: %s", stdout.String(), stderr.String())
 			assert.Contains(t, stdout.String(), tt.wantStdout)
 			assert.Contains(t, stderr.String(), tt.wantStderr)
@@ -129,6 +159,8 @@ func TestRunOutputJSON(t *testing.T) {
 			assert.Equal(t, CurrentSchemaVersion, s.SchemaVersion)
 			require.Len(t, s.Functions, 1)
 			assert.Equal(t, int64(1000), s.Functions[0].CPUInstructions)
+			// Highest share of a cap: 144 read bytes of the 200,000 testnet limit.
+			assert.InDelta(t, 0.072, s.Functions[0].PctOfNetworkCap, 1e-9)
 		})
 	}
 }

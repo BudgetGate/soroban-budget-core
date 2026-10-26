@@ -33,6 +33,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	outputJson := fs.String("output-json", "", "Path to write the new snapshot JSON to")
 	maxDeltaPct := fs.Float64("max-delta-pct", 10.0, "Maximum allowed percentage increase in resource usage (0 disables)")
 	capWarningPct := fs.Float64("cap-warning-pct", 80.0, "Warn when a metric exceeds this percentage of its network cap (0 disables)")
+	failOnCapWarning := fs.Bool("fail-on-cap-warning", false, "Exit 1 when any metric has a cap warning")
 	maxIncrease := map[string]*int64{
 		"CPUInstructions": fs.Int64("max-cpu-increase", 0, "Regression when CPU instructions rise by more than this (0 disables)"),
 		"ReadBytes":       fs.Int64("max-read-bytes-increase", 0, "Regression when read bytes rise by more than this (0 disables)"),
@@ -59,15 +60,38 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 		thresholds.MaxIncrease[metric] = *v
 	}
+	if *failOnCapWarning && *capWarningPct == 0 {
+		fmt.Fprintln(stderr, "--fail-on-cap-warning needs --cap-warning-pct above 0.")
+		return exitError
+	}
 
 	if *baselinePath == "" {
 		fmt.Fprintln(stderr, "Usage: soroban-budget-core --baseline <file> [--new <file> | --fixture <file>]")
+		return exitError
+	}
+	if *fixturePath == "" && *newPath == "" {
+		fmt.Fprintln(stderr, "Must provide either --new or --fixture.")
 		return exitError
 	}
 
 	baseline, code := readSnapshot("baseline", *baselinePath, stderr)
 	if code != exitOK {
 		return code
+	}
+
+	// Caps are read live so they match the network and its current protocol version; there is no
+	// built-in fallback. A fixture run needs the network anyway. A --new run skips the lookup when
+	// cap warnings are off, so it can work offline; % of Cap then shows n/a.
+	var caps NetworkCaps
+	if *fixturePath != "" || *capWarningPct > 0 {
+		fmt.Fprintf(stderr, "Reading network caps from %s...\n", *rpcURL)
+		var err error
+		caps, err = FetchNetworkCaps(context.Background(), *rpcURL)
+		if err != nil {
+			fmt.Fprintf(stderr, "Error reading network caps from %s: %v\n", *rpcURL, err)
+			return exitError
+		}
+		thresholds.NetworkCaps = caps.Limits
 	}
 
 	var newSnapshot *Snapshot
@@ -106,7 +130,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 				}
 			}
 
-			funcs = append(funcs, FunctionCost{
+			fc := FunctionCost{
 				Name:            f.Name,
 				FixtureID:       f.FixtureID,
 				CPUInstructions: res.CPUInstructions,
@@ -115,7 +139,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 				WriteBytes:      res.WriteBytes,
 				ReadEntries:     &res.ReadEntries,
 				WriteEntries:    &res.WriteEntries,
-			})
+			}
+			fc.PctOfNetworkCap = pctOfNetworkCap(fc, caps.Limits)
+			funcs = append(funcs, fc)
 		}
 
 		newSnapshot = &Snapshot{
@@ -124,20 +150,20 @@ func run(args []string, stdout, stderr io.Writer) int {
 			CommitSHA:     "dynamic",
 			Functions:     funcs,
 		}
-	} else if *newPath != "" {
+	} else {
 		newSnapshot, code = readSnapshot("new snapshot", *newPath, stderr)
 		if code != exitOK {
 			return code
 		}
-	} else {
-		fmt.Fprintln(stderr, "Must provide either --new or --fixture.")
-		return exitError
 	}
 
 	results := CompareSnapshots(baseline, newSnapshot, thresholds)
 
 	markdown := FormatDiffs(results)
 	fmt.Fprint(stdout, markdown)
+	if caps.Limits != nil {
+		fmt.Fprintf(stdout, "\n%% of Cap uses the network's per-transaction limits at protocol %d, ledger %d.\n", caps.ProtocolVersion, caps.Ledger)
+	}
 
 	// A snapshot that was asked for but not written fails the run, even after a regression: a
 	// caller that saves it as the next baseline must not continue with a missing or stale file.
@@ -149,10 +175,18 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
+	capWarnings := 0
 	for _, d := range results {
 		if d.Regression {
 			return exitRegression
 		}
+		if d.CapWarning {
+			capWarnings++
+		}
+	}
+	if *failOnCapWarning && capWarnings > 0 {
+		fmt.Fprintf(stderr, "Failing: %d cap warning(s) and --fail-on-cap-warning is set.\n", capWarnings)
+		return exitRegression
 	}
 	return exitOK
 }

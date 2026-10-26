@@ -19,7 +19,13 @@ import (
 // (see testdata/README.md).
 func capturedResponse(t *testing.T, fixture string) []byte {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("testdata", "simulate_"+fixture+".json"))
+	return capturedFile(t, "simulate_"+fixture+".json")
+}
+
+// capturedFile returns a file from testdata/.
+func capturedFile(t *testing.T, name string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("testdata", name))
 	require.NoError(t, err)
 	return b
 }
@@ -191,9 +197,12 @@ func TestParseTransactionData(t *testing.T) {
 }
 
 // paddingRPC mimics soroban-testnet: declared instructions are actual + max(leeway, minPad).
+// It answers getLedgerEntries and getNetwork with the captured testnet responses, so a CLI run
+// against it can read network caps.
 func paddingRPC(t *testing.T, actual, minPad int64) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
+			Method string `json:"method"`
 			Params struct {
 				ResourceConfig struct {
 					InstructionLeeway int64 `json:"instructionLeeway"`
@@ -201,6 +210,15 @@ func paddingRPC(t *testing.T, actual, minPad int64) *httptest.Server {
 			} `json:"params"`
 		}
 		assert.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+
+		switch req.Method {
+		case "getLedgerEntries":
+			w.Write(capturedFile(t, "getledgerentries_config.json"))
+			return
+		case "getNetwork":
+			w.Write(capturedFile(t, "getnetwork.json"))
+			return
+		}
 
 		pad := max(req.Params.ResourceConfig.InstructionLeeway, minPad)
 		txData := xdr.SorobanTransactionData{
