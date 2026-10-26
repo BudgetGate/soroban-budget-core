@@ -51,6 +51,34 @@ func TestParseSnapshot_NullMemory(t *testing.T) {
 	assert.Nil(t, snapshot.Functions[0].MemoryBytes)
 }
 
+func TestParseSnapshot_SchemaVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		json    string
+		wantErr bool
+	}{
+		{name: "1.0 is read", json: `{"schema_version": "1.0", "functions": []}`},
+		{name: "current version is read", json: `{"schema_version": "` + CurrentSchemaVersion + `", "functions": []}`},
+		{name: "missing version", json: `{"functions": []}`, wantErr: true},
+		{name: "empty version", json: `{"schema_version": "", "functions": []}`, wantErr: true},
+		{name: "unknown version", json: `{"schema_version": "3.0", "functions": []}`, wantErr: true},
+		{name: "unnormalised version", json: `{"schema_version": "2", "functions": []}`, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snapshot, err := ParseSnapshot(strings.NewReader(tt.json))
+			if tt.wantErr {
+				assert.ErrorIs(t, err, ErrUnsupportedSchema)
+				assert.Nil(t, snapshot)
+				return
+			}
+			assert.NoError(t, err)
+			assert.NotNil(t, snapshot)
+		})
+	}
+}
+
 func TestParseSnapshot_InvalidJSON(t *testing.T) {
 	jsonStr := `{ "schema_version": "1.0", "network": }`
 	r := strings.NewReader(jsonStr)

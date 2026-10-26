@@ -8,7 +8,8 @@ Last updated: 2026-10-26 (after #9)
 
 - Phase 1 is done. `main` (`72f09f9`) has #4–#10: native XDR decoding, actual CPU via two-leeway simulation, footprint entry counts, memory out of the comparison, HTTP timeout with context. Verified against the deployed counter contract (numbers in `CLAUDE.md` section 3).
 - The docs site (budgetgate.github.io/docs/) now describes this `main`, including its known limitations. Changing user-facing behaviour needs a matching `BudgetGate/docs` PR.
-- Next up: phase 2. Start with C10 (schema version), since C11 moves the test data that C10's tests will use.
+- C10 done: snapshots are written as schema `2.0`; `1.0` and `2.0` are read; a missing or unknown version exits 2 with an error on stderr.
+- Next up: C11 (test data under `testdata/`, table-driven tests), then C15.
 - Rule learned the hard way: do not stack PRs on feature branches. Base every PR on `main`.
 
 ## Phase 1 — Real measurement
@@ -23,7 +24,7 @@ Last updated: 2026-10-26 (after #9)
 
 ## Phase 2 — Schema and test data
 
-- [ ] C10: bump `schema_version`, document v2 in `SCHEMA.md`, reject baselines with an unknown version
+- [x] C10: bump `schema_version` to `2.0`, document it in `SCHEMA.md`, reject snapshots with a missing or unknown version (exit 2)
 - [ ] C11: move captured RPC responses to `testdata/`, table-driven tests, move sample snapshots and fixtures out of the repo root, make the README example produce a non-empty report
 - [ ] C15: `.gitattributes` so Go files stay LF on Windows checkouts
 - [ ] Commit the v1/v2 counter contract used for verification under `testdata/` so the check can be rerun (it lives in the private workspace repo today)

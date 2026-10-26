@@ -24,10 +24,10 @@ State of `main` on 2026-10-26 (`72f09f9`, after #4–#10). Module `github.com/bu
 | `main.go` | Flags `--baseline` (required), `--new`, `--fixture` (wins over `--new`), `--rpc-url` (default `https://soroban-testnet.stellar.org`), `--output-json`, `--max-delta-pct` (default 10). With `--fixture` it calls `MeasureResources` per entry and builds the snapshot; with `--new` it reads one. Exit codes in C4. |
 | `rpc.go` | `MeasureResources(ctx, rpcURL, txXDR)`: simulates twice with `instructionLeeway` 1,000,000 and 2,000,000, checks the declared values differ by exactly 1,000,000, and reports actual CPU = first − 1,000,000. `simulateTransaction` uses an `http.Client` with a 30 s timeout (`rpcTimeout`) and `NewRequestWithContext`. `ParseTransactionData` decodes `transactionData` into `Resources` (instructions, disk read bytes, write bytes, `ReadEntries`, `WriteEntries`). Fails on `result.error` or missing `transactionData`. `SimulateTransaction` is kept for other callers. |
 | `diff.go` | `Thresholds`, `DiffResult`, `getCap` (hardcoded caps), `CompareSnapshots` (CPU, read bytes, write bytes, read entries, write entries; memory not compared), `compareOptionalMetric`, `compareMetric`, `FormatDiffs`. |
-| `snapshot.go` | `FixtureEntry`, `Snapshot`, `FunctionCost` (`MemoryBytes`, `ReadEntries`, `WriteEntries` are `*int64`), `ParseSnapshot`. |
+| `snapshot.go` | `FixtureEntry`, `Snapshot`, `FunctionCost` (`MemoryBytes`, `ReadEntries`, `WriteEntries` are `*int64`), `ParseSnapshot` (rejects a missing or unknown `schema_version` with `ErrUnsupportedSchema`), `CurrentSchemaVersion` (`"2.0"`). |
 | `cmd/genfixture/main.go` | Regenerates `fixture.json` against testnet: funds an account via friendbot, builds signed `balance` and `transfer` calls on the native-asset contract. `go run ./cmd/genfixture > fixture.json`. |
-| `*_test.go` | 19 testify tests for diff, RPC (captured testnet `transactionData` as string constants, fake RPC servers for the two-leeway logic) and snapshot parsing. |
-| `SCHEMA.md` | Snapshot format (v1.0) and fixture format (`[{name, fixture_id, xdr}]`). Authoritative. |
+| `*_test.go` | 20 testify tests (one table-driven, for schema versions) for diff, RPC (captured testnet `transactionData` as string constants, fake RPC servers for the two-leeway logic) and snapshot parsing. |
+| `SCHEMA.md` | Snapshot format (v2.0, with a version history and the reading rules) and fixture format (`[{name, fixture_id, xdr}]`). Authoritative. |
 | `baseline.json`, `new.json` | Sample snapshots with placeholder numbers, not measurements. |
 | `fixture.json` | `balance_check` (read-only) and `transfer_to_contract` (writes storage) against the testnet native-asset contract. |
 | `budget-core` | Committed compiled binary, built before #4 (C6). |
@@ -41,26 +41,25 @@ Checked 2026-10-26 against `origin/main` (`72f09f9`). "Open PR" means a fix exis
 | ID | Defect | Evidence | Open PR |
 |----|--------|----------|---------|
 | C3 | Only one threshold flag (`--max-delta-pct`). Cap-warning threshold (80%) is a constant; `Thresholds.MaxAbsolute` has no flag. | `diff.go` | — |
-| C4 | Missing `--baseline`, missing `--new`/`--fixture`, unreadable files and RPC failures exit 1, same as a regression. Only an undefined flag exits 2 (Go's `flag` package default), by accident. | `main.go`; runs 2026-10-26: `--bogus` → 2, missing baseline file → 1 | — |
+| C4 | Missing `--baseline`, missing `--new`/`--fixture`, unreadable files and RPC failures exit 1, same as a regression. Exit 2 today only for an undefined flag (Go's `flag` package default) and for a snapshot with a missing or unknown `schema_version` (C10). | `main.go`; runs 2026-10-26: `--bogus` → 2, missing baseline file → 1 | — |
 | C5 | Caps are hardcoded with no source or protocol version (10 MB read / 1 MB write look far above real per-tx limits). A cap warning never fails the run. `pct_of_network_cap` is never populated. | `diff.go` `getCap` | — |
 | C5b | Functions only in the new snapshot, or only in the baseline, are silently skipped. | `diff.go` `CompareSnapshots` | — |
 | C5c | Snapshot `network` is hardcoded `"testnet"`, `commit_sha` is `"dynamic"`, `generated_at` is never set. | `main.go` | — |
 | C6 | Compiled `budget-core` binary committed (pre-#4 build, still calls Node, so broken). `PR_BODY.md` stale. `website/` unexplained. | `git ls-tree origin/main` | — |
 | C9 | Progress text and errors go to stdout, mixed with the report. | `main.go` `fmt.Printf` | — |
-| C10 | `memory_bytes` became nullable in #4 and `read_entries`/`write_entries` were added in #6 without bumping `schema_version` (still `"1.0"`). Core never checks a baseline's `schema_version`. | `SCHEMA.md`, `snapshot.go`, `main.go:87` | — |
 | C11 | Captured RPC responses are Go string constants, not files under `testdata/`. Tests are not table-driven. `baseline.json`, `new.json`, `fixture.json` sit in the repo root; `baseline.json` holds placeholder numbers. `baseline.json` (`balance_check`) and `new.json` (`mint`) share no function, so the README example `--baseline baseline.json --new new.json` prints an empty table and exits 0. | `rpc_test.go`, root listing, run 2026-10-26 | — |
 | C12 | No GitHub release. Only tag `v0.1.0`. The Action downloads `budget-core-linux-amd64` from a release that does not exist. | GitHub API | — |
 | C13 | `--output-json` write failures are silent: a `json.MarshalIndent` error skips the write without a message, and the `os.WriteFile` error is discarded (`_ =`). The Action then reads a missing or stale `new.json`. | `main.go:116-121` | — |
 | C14 | Repo docs are out of date and duplicate the docs site. `DOCUMENTATION.md` says the default threshold is 5% (it is 10) and calls the CLI "high-performance". `README.md` example output has no `% of Cap` column and uses placeholder numbers. `CONTRIBUTING.md` says Go 1.21+ (`go.mod` needs 1.25). | `DOCUMENTATION.md`, `README.md`, `CONTRIBUTING.md`, `go.mod` | — |
 | C15 | No `.gitattributes`. On Windows with `core.autocrlf=true`, Go files check out as CRLF and `gofmt -l .` lists every file, although the committed content is LF and gofmt-clean. | `git ls-files --eol` → `i/lf w/crlf`; gofmt on `git show HEAD:<file>` is clean | — |
 
-Resolved and removed: the old `--fixture` mock (removed before #4 in `a79bcd9`), Node-based XDR decoding and the always-0 memory (#4), the README/go.mod Go version mismatch (#4), padded CPU instructions (C2b, #5), `read_bytes` blind to contract storage (C2c, #6: footprint entry counts), no HTTP timeout (C8, #8). #5–#7 reached `main` through #9; #8 merged into `feat/drop-memory-from-report` before #9 merged and reached `main` with it.
+Resolved and removed: the old `--fixture` mock (removed before #4 in `a79bcd9`), Node-based XDR decoding and the always-0 memory (#4), the README/go.mod Go version mismatch (#4), padded CPU instructions (C2b, #5), `read_bytes` blind to contract storage (C2c, #6: footprint entry counts), no HTTP timeout (C8, #8), unversioned schema (C10: snapshots are written as `2.0`; `1.0` and `2.0` are read; anything else exits 2). #5–#7 reached `main` through #9; #8 merged into `feat/drop-memory-from-report` before #9 merged and reached `main` with it.
 
 Measurement verified on 2026-10-26 against a deployed counter contract v1 → v2, with core built from #9's head + #8 (= `main`): CPU 291,573 → 449,005, WriteBytes 80 → 380, ReadEntries 3 → 6, WriteEntries 1 → 4, exit 1 on v2; rerun steps in the workspace repo's `verification/counter-contract/README.md`. Not verified: that the post-#5 CPU figure equals what an executed transaction is charged.
 
 ## 4. Work order for this repo
 
-1. C10, C11, C15: bump the schema version and validate it on load; move captured responses to `testdata/`, table-driven tests; `.gitattributes` for LF.
+1. C11, C15: move captured responses to `testdata/`, table-driven tests; `.gitattributes` for LF.
 2. C3, C4, C5, C9, C13: threshold flags, exit codes 0/1/2, caps read from the network with protocol version recorded, clean stdout, report `--output-json` write errors.
 3. C5b, C5c, C6, C14: report new/removed functions, real snapshot metadata, remove the binary (add to `.gitignore`), resolve `PR_BODY.md` and `website/`, bring repo docs in line (or point them at the docs site).
 4. C12: tag a release with a built binary only when asked.
@@ -79,11 +78,11 @@ go test ./... -v
 ./budget-core --baseline baseline.json --new new.json
 ./budget-core --baseline baseline.json --fixture fixture.json   # live: calls soroban-testnet
 ```
-All of these were run on `main` (`72f09f9`) on 2026-10-26: `go vet` clean, 19 tests pass, the `--new` run prints an empty table and exits 0 (C11), the `--fixture` run reports a CPU "regression" (1,000 → 91,406) against the placeholder baseline and exits 1. On Windows with `core.autocrlf=true`, `gofmt -l .` lists every file (C15); check the committed content instead, e.g. `git show HEAD:main.go | gofmt -l`. `go build -o budget-core .` overwrites the committed binary (C6); do not commit the result. On Go older than 1.25, set `GOTOOLCHAIN=go1.25.0`.
+All of these were run on `main` (`72f09f9`) on 2026-10-26: `go vet` clean, 19 tests pass (20 after C10), the `--new` run prints an empty table and exits 0 (C11), the `--fixture` run reports a CPU "regression" (1,000 → 91,406) against the placeholder baseline and exits 1. On Windows with `core.autocrlf=true`, `gofmt -l .` lists every file (C15); check the committed content instead, e.g. `git show HEAD:main.go | gofmt -l`. `go build -o budget-core .` overwrites the committed binary (C6); do not commit the result. On Go older than 1.25, set `GOTOOLCHAIN=go1.25.0`.
 
 First run against a fresh contract, with no baseline yet:
 ```
-echo '{"schema_version":"1.0","functions":[]}' > empty.json
+echo '{"schema_version":"2.0","functions":[]}' > empty.json
 ./budget-core --baseline empty.json --fixture fixture.json --output-json baseline.json
 ```
 
