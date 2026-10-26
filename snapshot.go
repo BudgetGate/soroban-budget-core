@@ -2,8 +2,16 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 )
+
+// CurrentSchemaVersion is the snapshot schema version core writes. See SCHEMA.md.
+const CurrentSchemaVersion = "2.0"
+
+// ErrUnsupportedSchema is returned by ParseSnapshot for a missing or unknown schema_version.
+var ErrUnsupportedSchema = errors.New("unsupported snapshot schema_version")
 
 type FixtureEntry struct {
 	Name      string `json:"name"`
@@ -37,5 +45,21 @@ func ParseSnapshot(r io.Reader) (*Snapshot, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := checkSchemaVersion(s.SchemaVersion); err != nil {
+		return nil, err
+	}
 	return &s, nil
+}
+
+// checkSchemaVersion accepts the versions core can compare. 1.0 snapshots differ from 2.0 only
+// in ways the comparison already handles: memory_bytes may be a number (it is not compared) and
+// read_entries/write_entries may be absent (reported as unavailable).
+func checkSchemaVersion(v string) error {
+	switch v {
+	case "1.0", CurrentSchemaVersion:
+		return nil
+	case "":
+		return fmt.Errorf("%w: missing", ErrUnsupportedSchema)
+	}
+	return fmt.Errorf("%w: %q (this build reads 1.0 and %s)", ErrUnsupportedSchema, v, CurrentSchemaVersion)
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -31,8 +32,7 @@ func main() {
 
 	baseline, err := ParseSnapshot(baselineFile)
 	if err != nil {
-		fmt.Printf("Error parsing baseline: %v\n", err)
-		os.Exit(1)
+		exitParseError("baseline", *baselinePath, err)
 	}
 
 	var newSnapshot *Snapshot
@@ -84,7 +84,7 @@ func main() {
 		}
 
 		newSnapshot = &Snapshot{
-			SchemaVersion: "1.0",
+			SchemaVersion: CurrentSchemaVersion,
 			Network:       "testnet",
 			CommitSHA:     "dynamic",
 			Functions:     funcs,
@@ -99,8 +99,7 @@ func main() {
 
 		newSnapshot, err = ParseSnapshot(newFile)
 		if err != nil {
-			fmt.Printf("Error parsing new snapshot: %v\n", err)
-			os.Exit(1)
+			exitParseError("new snapshot", *newPath, err)
 		}
 	} else {
 		fmt.Println("Must provide either --new or --fixture.")
@@ -125,4 +124,16 @@ func main() {
 			os.Exit(1)
 		}
 	}
+}
+
+// exitParseError reports a snapshot that could not be read. An unsupported schema version
+// exits 2 on stderr so it is not mistaken for a regression; other parse errors keep the
+// existing exit 1 on stdout until exit codes and output streams are reworked (C4, C9).
+func exitParseError(label, path string, err error) {
+	if errors.Is(err, ErrUnsupportedSchema) {
+		fmt.Fprintf(os.Stderr, "Error reading %s %s: %v\n", label, path, err)
+		os.Exit(2)
+	}
+	fmt.Printf("Error parsing %s: %v\n", label, err)
+	os.Exit(1)
 }
