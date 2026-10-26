@@ -22,7 +22,7 @@ func TestCompareSnapshots(t *testing.T) {
 
 	results := CompareSnapshots(baseline, newSnapshot, thresholds)
 
-	assert.Len(t, results, 4) // CPU, Mem, Read, Write
+	assert.Len(t, results, 6) // CPU, Mem, ReadBytes, WriteBytes, ReadEntries, WriteEntries
 
 	// CPU Should regress (10% increase > 5% threshold)
 	assert.Equal(t, "CPUInstructions", results[0].Metric)
@@ -55,6 +55,44 @@ func TestCompareSnapshots_MemoryNotReported(t *testing.T) {
 	assert.True(t, results[1].Unavailable)
 	assert.False(t, results[1].Regression)
 	assert.Contains(t, FormatDiffs(results), "| mint | MemoryBytes | n/a | n/a | n/a | n/a | n/a | ➖ NOT REPORTED |")
+}
+
+func TestCompareSnapshots_FootprintEntries(t *testing.T) {
+	baseline := &Snapshot{
+		Functions: []FunctionCost{
+			{Name: "transfer", ReadEntries: int64Ptr(3), WriteEntries: int64Ptr(2)},
+		},
+	}
+
+	// One extra contract-storage read: invisible to ReadBytes, caught by ReadEntries.
+	newSnapshot := &Snapshot{
+		Functions: []FunctionCost{
+			{Name: "transfer", ReadEntries: int64Ptr(4), WriteEntries: int64Ptr(2)},
+		},
+	}
+
+	results := CompareSnapshots(baseline, newSnapshot, Thresholds{MaxDeltaPct: 10.0})
+
+	assert.Equal(t, "ReadEntries", results[4].Metric)
+	assert.True(t, results[4].Regression)
+	assert.Equal(t, "WriteEntries", results[5].Metric)
+	assert.False(t, results[5].Regression)
+}
+
+func TestCompareSnapshots_FootprintEntriesMissingFromBaseline(t *testing.T) {
+	// Baselines written before entry counts existed must not report a regression.
+	baseline := &Snapshot{Functions: []FunctionCost{{Name: "transfer"}}}
+	newSnapshot := &Snapshot{
+		Functions: []FunctionCost{
+			{Name: "transfer", ReadEntries: int64Ptr(3), WriteEntries: int64Ptr(2)},
+		},
+	}
+
+	results := CompareSnapshots(baseline, newSnapshot, Thresholds{MaxDeltaPct: 10.0})
+
+	assert.True(t, results[4].Unavailable)
+	assert.True(t, results[5].Unavailable)
+	assert.False(t, results[4].Regression || results[5].Regression)
 }
 
 func int64Ptr(v int64) *int64 {

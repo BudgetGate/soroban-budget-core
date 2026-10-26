@@ -77,6 +77,8 @@ func main() {
 				MemoryBytes:     memBytes,
 				ReadBytes:       res.ReadBytes,
 				WriteBytes:      res.WriteBytes,
+				ReadEntries:     &res.ReadEntries,
+				WriteEntries:    &res.WriteEntries,
 			})
 		}
 

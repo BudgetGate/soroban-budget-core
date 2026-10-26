@@ -100,6 +100,10 @@ type Resources struct {
 	CPUInstructions int64
 	ReadBytes       int64
 	WriteBytes      int64
+	// Footprint sizes. Since protocol 23, reads of live contract storage are not charged as
+	// DiskReadBytes, so entry counts are the only signal for added contract-storage access.
+	ReadEntries  int64 // every footprint entry (read-only and read-write)
+	WriteEntries int64 // read-write footprint entries
 }
 
 // ParseTransactionData decodes the base64 SorobanTransactionData XDR returned by simulateTransaction.
@@ -113,10 +117,13 @@ func ParseTransactionData(b64 string) (Resources, error) {
 		return Resources{}, fmt.Errorf("failed to decode transactionData XDR: %w", err)
 	}
 
+	footprint := txData.Resources.Footprint
 	return Resources{
 		CPUInstructions: int64(txData.Resources.Instructions),
 		ReadBytes:       int64(txData.Resources.DiskReadBytes),
 		WriteBytes:      int64(txData.Resources.WriteBytes),
+		ReadEntries:     int64(len(footprint.ReadOnly) + len(footprint.ReadWrite)),
+		WriteEntries:    int64(len(footprint.ReadWrite)),
 	}, nil
 }
 

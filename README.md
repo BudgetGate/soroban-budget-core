@@ -28,6 +28,8 @@ go build -o budget-core
 3. Provide the testnet or mainnet RPC URL via `--rpc-url`.
 4. (Optional) Provide `--max-delta-pct` (default is 10.0) to configure the regression threshold.
 
+The bundled `fixture.json` targets soroban-testnet. Regenerate it with `go run ./cmd/genfixture > fixture.json` after a testnet reset.
+
 Example:
 ```bash
 ./budget-core --baseline baseline.json --fixture fixture.json --rpc-url https://soroban-testnet.stellar.org --max-delta-pct 10.0

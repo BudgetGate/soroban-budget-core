@@ -16,6 +16,8 @@ This schema represents the JSON contract output by `soroban-budget-core`. It is 
       "memory_bytes": 500,
       "read_bytes": 200,
       "write_bytes": 100,
+      "read_entries": 3,
+      "write_entries": 2,
       "pct_of_network_cap": 0.05
     }
   ]
@@ -29,6 +31,8 @@ This schema represents the JSON contract output by `soroban-budget-core`. It is 
 - `commit_sha`: The commit hash of the contract being profiled.
 - `functions`: An array of profiling results for specific invoked functions.
 - `functions[].memory_bytes`: May be `null` when the RPC did not report memory usage (current `simulateTransaction` responses do not). Consumers must treat `null` as "unknown", not as `0`.
+- `functions[].read_bytes`: The RPC's `diskReadBytes`. Since protocol 23 this covers only classic and archived entries; reads of live contract storage are **not** included.
+- `functions[].read_entries` / `functions[].write_entries`: Number of ledger entries in the transaction footprint (all entries / read-write entries). These are the signal for added contract-storage access. They are `null` (or absent) in snapshots written before they were introduced, and comparisons against such a baseline show them as not reported.
 
 ## Fixture Schema (Input)
 

@@ -71,6 +71,24 @@ func TestParseTransactionData(t *testing.T) {
 	assert.Equal(t, int64(141406), res.CPUInstructions)
 	assert.Equal(t, int64(144), res.ReadBytes)
 	assert.Equal(t, int64(0), res.WriteBytes)
+	assert.Equal(t, int64(2), res.ReadEntries) // native contract instance + source account
+	assert.Equal(t, int64(0), res.WriteEntries)
+}
+
+// Real transactionData returned by soroban-testnet for the transfer_to_contract fixture.
+const testnetTransferTxData = "AAAAAAAAAAEAAAAGAAAAAdeSi3LCcDzP6vfrn/TvTVBKVai5efybRQ6iyEK00c5hAAAAFAAAAAEAAAACAAAAAAAAAAAoKON9PeseeiJNc+mQc7AUgGCXCLXXuTxjyPIEi6aiMQAAAAYAAAAB15KLcsJwPM/q9+uf9O9NUEpVqLl5/JtFDqLIQrTRzmEAAAAQAAAAAQAAAAIAAAAPAAAAB0JhbGFuY2UAAAAAEgAAAAHXkotywnA8z+r365/0701QSlWouXn8m0UOoshCtNHOYQAAAAEABBl3AAAAkAAAAXAAAAAAAABpLA=="
+
+func TestParseTransactionData_StorageWrite(t *testing.T) {
+	res, err := ParseTransactionData(testnetTransferTxData)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(268663), res.CPUInstructions) // includes the RPC's 50,000 pad
+	assert.Equal(t, int64(368), res.WriteBytes)
+	assert.Equal(t, int64(3), res.ReadEntries)
+	assert.Equal(t, int64(2), res.WriteEntries) // source account + contract balance entry
+
+	// The transfer also reads a 216-byte contract-data balance entry, yet DiskReadBytes is the
+	// same as balance_check's: live contract storage is not charged as disk reads.
+	assert.Equal(t, int64(144), res.ReadBytes)
 }
 
 func TestParseTransactionData_Invalid(t *testing.T) {

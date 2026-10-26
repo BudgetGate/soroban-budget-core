@@ -50,6 +50,8 @@ func CompareSnapshots(baseline, newSnapshot *Snapshot, thresholds Thresholds) []
 			results = append(results, compareOptionalMetric(newFn.Name, "MemoryBytes", baseFn.MemoryBytes, newFn.MemoryBytes, thresholds))
 			results = append(results, compareMetric(newFn.Name, "ReadBytes", baseFn.ReadBytes, newFn.ReadBytes, thresholds))
 			results = append(results, compareMetric(newFn.Name, "WriteBytes", baseFn.WriteBytes, newFn.WriteBytes, thresholds))
+			results = append(results, compareOptionalMetric(newFn.Name, "ReadEntries", baseFn.ReadEntries, newFn.ReadEntries, thresholds))
+			results = append(results, compareOptionalMetric(newFn.Name, "WriteEntries", baseFn.WriteEntries, newFn.WriteEntries, thresholds))
 		}
 	}
 

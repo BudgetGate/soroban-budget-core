@@ -16,6 +16,14 @@ The instruction count the RPC declares is not raw usage: it is actual usage plus
 
 Memory is not part of `SorobanTransactionData`. It was only exposed through the legacy `result.cost.memBytes` field, which current RPC versions omit. When it is absent, `memory_bytes` is recorded as `null` and is never treated as a regression.
 
+#### Read bytes and footprint entries
+Since protocol 23, live contract storage is held in memory and reading it is not charged as `diskReadBytes`. `read_bytes` therefore only changes for classic entries (accounts, trustlines) and archived entries. For example, a native-asset `transfer` to a contract reads a contract instance and a 216-byte contract-data balance entry, yet its `diskReadBytes` is the 144 bytes of the source account alone.
+
+To catch added contract-storage access, the CLI also records the size of the transaction footprint: `read_entries` (every entry the transaction touches) and `write_entries` (entries it may modify). These are compared like the other metrics.
+
+#### Fixtures
+`fixture.json` is generated with `go run ./cmd/genfixture > fixture.json`. It funds a fresh testnet account with friendbot and builds signed envelopes for a read-only call (`balance_check`) and a storage-writing call (`transfer_to_contract`) on the testnet native asset contract. Testnet is reset periodically, so rerun the generator when the fixture account no longer exists.
+
 A simulation that fails (the RPC returns `result.error`) or returns no `transactionData` makes the CLI exit non-zero instead of producing zero values.
 
 ### Threshold Calculations
