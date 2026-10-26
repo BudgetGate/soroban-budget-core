@@ -118,23 +118,25 @@ func TestCompareSnapshots(t *testing.T) {
 			maxIncrease: map[string]int64{"ReadEntries": 1},
 		},
 		{
-			// 90M of the 100M CPU cap, with the default warning level.
+			// 350M of the 400M testnet CPU cap (87.5%), with the default warning level.
 			name:         "cap warning at the default 80%",
-			changeBase:   func(fc *FunctionCost) { fc.CPUInstructions = 90_000_000 },
-			changeNew:    func(fc *FunctionCost) { fc.CPUInstructions = 90_000_000 },
+			changeBase:   func(fc *FunctionCost) { fc.CPUInstructions = 350_000_000 },
+			changeNew:    func(fc *FunctionCost) { fc.CPUInstructions = 350_000_000 },
 			capWarnPct:   80,
 			want:         map[string]flags{"CPUInstructions": {capWarning: true}},
 			wantCPUDelta: 0,
 		},
 		{
-			name:       "cap warning at a custom level",
-			capWarnPct: 0.01, // write bytes are 0.0368% of their cap; CPU and read bytes are below 0.01%
-			want:       map[string]flags{"WriteBytes": {capWarning: true}},
+			name: "cap warning at a custom level",
+			// Read entries are 0.75% (3 of 400) and write entries 1% (2 of 200) of their caps;
+			// write bytes 0.28%, read bytes 0.07%, CPU 0.00025%.
+			capWarnPct: 0.5,
+			want:       map[string]flags{"ReadEntries": {capWarning: true}, "WriteEntries": {capWarning: true}},
 		},
 		{
 			name:       "cap warning disabled",
-			changeBase: func(fc *FunctionCost) { fc.CPUInstructions = 90_000_000 },
-			changeNew:  func(fc *FunctionCost) { fc.CPUInstructions = 90_000_000 },
+			changeBase: func(fc *FunctionCost) { fc.CPUInstructions = 350_000_000 },
+			changeNew:  func(fc *FunctionCost) { fc.CPUInstructions = 350_000_000 },
 			capWarnPct: 0,
 		},
 	}
@@ -152,7 +154,7 @@ func TestCompareSnapshots(t *testing.T) {
 			results := CompareSnapshots(
 				&Snapshot{Functions: []FunctionCost{baseFn}},
 				&Snapshot{Functions: []FunctionCost{newFn}},
-				Thresholds{MaxDeltaPct: tt.maxDeltaPct, CapWarningPct: tt.capWarnPct, MaxIncrease: tt.maxIncrease},
+				Thresholds{MaxDeltaPct: tt.maxDeltaPct, CapWarningPct: tt.capWarnPct, MaxIncrease: tt.maxIncrease, NetworkCaps: testnetCaps()},
 			)
 
 			var metrics []string
@@ -178,22 +180,22 @@ func TestFormatDiffs(t *testing.T) {
 	}{
 		{
 			name: "regression",
-			res:  DiffResult{FunctionName: "mint", Metric: "CPUInstructions", BaselineValue: 1000, NewValue: 1100, Delta: 100, DeltaPct: 10, Regression: true},
+			res:  DiffResult{FunctionName: "mint", Metric: "CPUInstructions", BaselineValue: 1000, NewValue: 1100, Delta: 100, DeltaPct: 10, HasCap: true, Regression: true},
 			want: "| mint | CPUInstructions | 1000 | 1100 | 100 | 10.00% | 0.00% | ❌ REGRESSION |",
 		},
 		{
 			name: "ok",
-			res:  DiffResult{FunctionName: "mint", Metric: "ReadBytes", BaselineValue: 144, NewValue: 144, AbsoluteCapPct: 0.5},
+			res:  DiffResult{FunctionName: "mint", Metric: "ReadBytes", BaselineValue: 144, NewValue: 144, AbsoluteCapPct: 0.5, HasCap: true},
 			want: "| mint | ReadBytes | 144 | 144 | 0 | 0.00% | 0.50% | ✅ OK |",
 		},
 		{
 			name: "cap warning",
-			res:  DiffResult{FunctionName: "mint", Metric: "CPUInstructions", BaselineValue: 85, NewValue: 85, AbsoluteCapPct: 85, CapWarning: true},
+			res:  DiffResult{FunctionName: "mint", Metric: "CPUInstructions", BaselineValue: 85, NewValue: 85, AbsoluteCapPct: 85, HasCap: true, CapWarning: true},
 			want: "| mint | CPUInstructions | 85 | 85 | 0 | 0.00% | 85.00% | ⚠️ CAP WARNING |",
 		},
 		{
 			name: "regression and cap warning",
-			res:  DiffResult{FunctionName: "mint", Metric: "CPUInstructions", BaselineValue: 50, NewValue: 90, Delta: 40, DeltaPct: 80, AbsoluteCapPct: 90, Regression: true, CapWarning: true},
+			res:  DiffResult{FunctionName: "mint", Metric: "CPUInstructions", BaselineValue: 50, NewValue: 90, Delta: 40, DeltaPct: 80, AbsoluteCapPct: 90, HasCap: true, Regression: true, CapWarning: true},
 			want: "| mint | CPUInstructions | 50 | 90 | 40 | 80.00% | 90.00% | ❌ REGRESSION & ⚠️ CAP WARNING |",
 		},
 		{
@@ -203,13 +205,19 @@ func TestFormatDiffs(t *testing.T) {
 		},
 		{
 			name: "added",
-			res:  DiffResult{FunctionName: "burn", Metric: "CPUInstructions", NewValue: 91406, AbsoluteCapPct: 0.09, Added: true},
+			res:  DiffResult{FunctionName: "burn", Metric: "CPUInstructions", NewValue: 91406, AbsoluteCapPct: 0.09, HasCap: true, Added: true},
 			want: "| burn | CPUInstructions | n/a | 91406 | n/a | n/a | 0.09% | 🆕 NEW |",
 		},
 		{
 			name: "added near the cap",
-			res:  DiffResult{FunctionName: "burn", Metric: "CPUInstructions", NewValue: 90000000, AbsoluteCapPct: 90, CapWarning: true, Added: true},
+			res:  DiffResult{FunctionName: "burn", Metric: "CPUInstructions", NewValue: 90000000, AbsoluteCapPct: 90, HasCap: true, CapWarning: true, Added: true},
 			want: "| burn | CPUInstructions | n/a | 90000000 | n/a | n/a | 90.00% | 🆕 NEW & ⚠️ CAP WARNING |",
+		},
+		{
+			// Network caps were not read (--new with --cap-warning-pct 0).
+			name: "cap unknown",
+			res:  DiffResult{FunctionName: "mint", Metric: "CPUInstructions", BaselineValue: 1000, NewValue: 1000},
+			want: "| mint | CPUInstructions | 1000 | 1000 | 0 | 0.00% | n/a | ✅ OK |",
 		},
 		{
 			name: "removed",
@@ -300,12 +308,12 @@ func TestCompareSnapshots_AddedRemoved(t *testing.T) {
 
 func TestCompareSnapshots_AddedFunctionValues(t *testing.T) {
 	// 90M of the 100M CPU cap: an added function still gets a cap warning.
-	added := FunctionCost{Name: "g", CPUInstructions: 90_000_000, ReadBytes: 144, WriteBytes: 0}
-	results := CompareSnapshots(&Snapshot{}, &Snapshot{Functions: []FunctionCost{added}}, Thresholds{MaxDeltaPct: 10, CapWarningPct: 80})
+	added := FunctionCost{Name: "g", CPUInstructions: 350_000_000, ReadBytes: 144, WriteBytes: 0}
+	results := CompareSnapshots(&Snapshot{}, &Snapshot{Functions: []FunctionCost{added}}, Thresholds{MaxDeltaPct: 10, CapWarningPct: 80, NetworkCaps: testnetCaps()})
 
 	require.Len(t, results, 5)
-	assert.Equal(t, int64(90_000_000), results[0].NewValue)
-	assert.InDelta(t, 90.0, results[0].AbsoluteCapPct, 1e-9)
+	assert.Equal(t, int64(350_000_000), results[0].NewValue)
+	assert.InDelta(t, 87.5, results[0].AbsoluteCapPct, 1e-9)
 	assert.True(t, results[0].CapWarning)
 	assert.False(t, results[1].CapWarning)
 	// Entry counts missing from the new snapshot (e.g. a 1.0 file) are reported as unavailable.

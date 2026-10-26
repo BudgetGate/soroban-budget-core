@@ -36,9 +36,24 @@ go build -o budget-core
 | `--max-write-bytes-increase` | `0` | Same for write bytes. |
 | `--max-read-entries-increase` | `0` | Same for read entries. |
 | `--max-write-entries-increase` | `0` | Same for write entries. |
-| `--cap-warning-pct` | `80` | `⚠️ CAP WARNING` when a metric is above this percentage of its built-in cap. A warning never fails the run. |
+| `--cap-warning-pct` | `80` | `⚠️ CAP WARNING` when a metric is above this percentage of the network's per-transaction cap. |
+| `--fail-on-cap-warning` | off | Exit `1` when any metric has a cap warning. Without it, a warning never fails the run. Needs `--cap-warning-pct` above `0`. |
 
 A metric regresses if it breaks either its percentage or its absolute limit.
+
+### Network caps
+
+The caps are read from the network on every run, from `--rpc-url`, so they match that network and its current protocol version. Nothing is hardcoded. The report ends with the protocol version and ledger they came from.
+
+| Metric | Network limit |
+|--------|---------------|
+| CPUInstructions | `txMaxInstructions` |
+| ReadBytes | `txMaxDiskReadBytes` |
+| WriteBytes | `txMaxWriteBytes` |
+| ReadEntries | `txMaxFootprintEntries` (all footprint entries, matching how `read_entries` is counted) |
+| WriteEntries | `txMaxWriteLedgerEntries` |
+
+If the caps can't be read, the run exits `2`. A `--new` run with `--cap-warning-pct 0` skips the lookup and works offline; `% of Cap` then shows `n/a`.
 
 `testdata/fixture.json` targets soroban-testnet, and `testdata/snapshot_testnet.json` is a snapshot core measured from it. After a testnet reset, regenerate the fixture with `go run ./cmd/genfixture > testdata/fixture.json` (see [`testdata/README.md`](./testdata/README.md)).
 
@@ -47,25 +62,27 @@ Example:
 ./budget-core --baseline testdata/snapshot_testnet.json --fixture testdata/fixture.json --rpc-url https://soroban-testnet.stellar.org --max-delta-pct 10.0
 ```
 
-The CLI will produce a Markdown formatted table comparing the costs and surfacing regressions if they exceed the specified `--max-delta-pct` or reach a hardcoded network absolute cap (e.g. 100M CPU instructions).
+The CLI produces a Markdown table comparing the costs, flagging regressions and metrics close to the network's caps.
 
 ### Example Output
 
-Output of the example above on 2026-10-26 (exit code 0; the costs had not changed since the snapshot was taken):
+Output of the example above on 2026-10-27 (exit code 0; the costs had not changed since the snapshot was taken):
 
 ```markdown
 | Function | Metric | Baseline | New | Delta | % Change | % of Cap | Status |
 |----------|--------|----------|-----|-------|----------|----------|--------|
-| balance_check | CPUInstructions | 91406 | 91406 | 0 | 0.00% | 0.09% | ✅ OK |
-| balance_check | ReadBytes | 144 | 144 | 0 | 0.00% | 0.00% | ✅ OK |
+| balance_check | CPUInstructions | 91406 | 91406 | 0 | 0.00% | 0.02% | ✅ OK |
+| balance_check | ReadBytes | 144 | 144 | 0 | 0.00% | 0.07% | ✅ OK |
 | balance_check | WriteBytes | 0 | 0 | 0 | 0.00% | 0.00% | ✅ OK |
-| balance_check | ReadEntries | 2 | 2 | 0 | 0.00% | 0.00% | ✅ OK |
+| balance_check | ReadEntries | 2 | 2 | 0 | 0.00% | 0.50% | ✅ OK |
 | balance_check | WriteEntries | 0 | 0 | 0 | 0.00% | 0.00% | ✅ OK |
-| transfer_to_contract | CPUInstructions | 218663 | 218663 | 0 | 0.00% | 0.22% | ✅ OK |
-| transfer_to_contract | ReadBytes | 144 | 144 | 0 | 0.00% | 0.00% | ✅ OK |
-| transfer_to_contract | WriteBytes | 368 | 368 | 0 | 0.00% | 0.04% | ✅ OK |
-| transfer_to_contract | ReadEntries | 3 | 3 | 0 | 0.00% | 0.00% | ✅ OK |
-| transfer_to_contract | WriteEntries | 2 | 2 | 0 | 0.00% | 0.00% | ✅ OK |
+| transfer_to_contract | CPUInstructions | 218663 | 218663 | 0 | 0.00% | 0.05% | ✅ OK |
+| transfer_to_contract | ReadBytes | 144 | 144 | 0 | 0.00% | 0.07% | ✅ OK |
+| transfer_to_contract | WriteBytes | 368 | 368 | 0 | 0.00% | 0.28% | ✅ OK |
+| transfer_to_contract | ReadEntries | 3 | 3 | 0 | 0.00% | 0.75% | ✅ OK |
+| transfer_to_contract | WriteEntries | 2 | 2 | 0 | 0.00% | 1.00% | ✅ OK |
+
+% of Cap uses the network's per-transaction limits at protocol 29, ledger 5406551.
 ```
 
 A row turns `❌ REGRESSION` when a metric rises more than `--max-delta-pct`, and the CLI then exits `1`.
@@ -75,7 +92,7 @@ A row turns `❌ REGRESSION` when a metric rises more than `--max-delta-pct`, an
 | Code | Meaning |
 |------|---------|
 | `0` | No regression. Also `-h`. |
-| `1` | At least one metric regressed. |
+| `1` | At least one metric regressed, or a cap warning with `--fail-on-cap-warning`. |
 | `2` | The run could not compare: bad or missing flags, unreadable or invalid files, an unsupported `schema_version`, an RPC failure, or a `--output-json` file that could not be written. |
 
 stdout carries only the Markdown report, so it can be redirected or posted as-is. Usage, progress and error messages go to stderr; on an error, stdout is empty, except when only writing `--output-json` failed: the report is printed first, then the run exits `2`.
