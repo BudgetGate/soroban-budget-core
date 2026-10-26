@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os/exec"
+	"strconv"
+
+	"github.com/stellar/go-stellar-sdk/xdr"
 )
 
 // JSONRPCRequest represents a standard JSON-RPC 2.0 request
@@ -22,16 +24,19 @@ type SimulateTransactionResponse struct {
 	JSONRPC string `json:"jsonrpc"`
 	ID      int    `json:"id"`
 	Result  struct {
-		Cost struct {
+		// Cost is only returned by older RPC versions; current stellar-rpc omits it.
+		Cost *struct {
 			CPUInstructions string `json:"cpuInsns"`
 			MemoryBytes     string `json:"memBytes"`
-		} `json:"cost"`
+		} `json:"cost,omitempty"`
 		Results []struct {
 			Auth []interface{} `json:"auth"`
 			XDR  string        `json:"xdr"`
 		} `json:"results"`
 		TransactionData string `json:"transactionData"`
 		MinResourceFee  string `json:"minResourceFee"`
+		// Error is set when the simulation itself failed (e.g. a contract panic).
+		Error string `json:"error"`
 	} `json:"result,omitempty"`
 	Error *struct {
 		Code    int    `json:"code"`
@@ -73,29 +78,46 @@ func SimulateTransaction(rpcURL string, txXDR string) (*SimulateTransactionRespo
 		return nil, fmt.Errorf("rpc returned error: %d %s", simResp.Error.Code, simResp.Error.Message)
 	}
 
+	if simResp.Result.Error != "" {
+		return nil, fmt.Errorf("simulation failed: %s", simResp.Result.Error)
+	}
+
 	return &simResp, nil
 }
 
-func ParseTransactionData(b64 string) (int64, int64, int64, int64, error) {
+// Resources holds the resource figures declared in a simulation's SorobanTransactionData.
+type Resources struct {
+	CPUInstructions int64
+	ReadBytes       int64
+	WriteBytes      int64
+}
+
+// ParseTransactionData decodes the base64 SorobanTransactionData XDR returned by simulateTransaction.
+func ParseTransactionData(b64 string) (Resources, error) {
 	if b64 == "" {
-		return 0, 0, 0, 0, nil
+		return Resources{}, fmt.Errorf("simulation returned no transactionData")
 	}
-	
-	cmd := exec.Command("node", "parse_xdr.js", b64)
-	out, err := cmd.Output()
+
+	var txData xdr.SorobanTransactionData
+	if err := xdr.SafeUnmarshalBase64(b64, &txData); err != nil {
+		return Resources{}, fmt.Errorf("failed to decode transactionData XDR: %w", err)
+	}
+
+	return Resources{
+		CPUInstructions: int64(txData.Resources.Instructions),
+		ReadBytes:       int64(txData.Resources.DiskReadBytes),
+		WriteBytes:      int64(txData.Resources.WriteBytes),
+	}, nil
+}
+
+// parseOptionalInt parses a numeric string, returning nil when the value is absent.
+func parseOptionalInt(s string) (*int64, error) {
+	if s == "" {
+		return nil, nil
+	}
+	v, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("node script failed: %w\nOutput: %s", err, string(out))
+		return nil, err
 	}
-	
-	var res struct {
-		ReadBytes       int64 `json:"readBytes"`
-		WriteBytes      int64 `json:"writeBytes"`
-		CPUInstructions int64 `json:"cpuInstructions"`
-		MemoryBytes     int64 `json:"memoryBytes"`
-	}
-	if err := json.Unmarshal(out, &res); err != nil {
-		return 0, 0, 0, 0, err
-	}
-	
-	return res.ReadBytes, res.WriteBytes, res.CPUInstructions, res.MemoryBytes, nil
+	return &v, nil
 }

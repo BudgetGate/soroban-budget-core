@@ -4,14 +4,14 @@
 
 ## 🚀 Features
 
-- **Resource Tracking:** Compares CPU instructions, memory bytes, and read/write bytes.
+- **Resource Tracking:** Compares CPU instructions, memory bytes, and read/write bytes. Current Soroban RPC versions no longer report memory from `simulateTransaction`, so fixture runs record `memory_bytes` as `null` and the report shows it as "NOT REPORTED".
 - **Regression Detection:** Automatically identifies resource regressions when a new commit exceeds baseline costs by more than 10%.
 - **CI/CD Ready:** Exits with `0` on success and `1` (or another non-zero code) on regressions, making it perfect for automated workflows.
 - **Markdown Reporting:** Outputs a clean, GitHub-flavored Markdown table summarizing the differences.
 
 ## 📦 Installation
 
-Ensure you have [Go](https://golang.org/dl/) 1.20 or later installed.
+Ensure you have [Go](https://golang.org/dl/) 1.25 or later installed. No other runtime is needed; XDR is decoded natively with the Stellar Go SDK.
 
 ```bash
 # Clone the repository

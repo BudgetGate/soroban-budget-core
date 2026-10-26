@@ -28,6 +28,7 @@ This schema represents the JSON contract output by `soroban-budget-core`. It is 
 - `generated_at`: ISO8601 timestamp.
 - `commit_sha`: The commit hash of the contract being profiled.
 - `functions`: An array of profiling results for specific invoked functions.
+- `functions[].memory_bytes`: May be `null` when the RPC did not report memory usage (current `simulateTransaction` responses do not). Consumers must treat `null` as "unknown", not as `0`.
 
 ## Fixture Schema (Input)
 

@@ -12,13 +12,13 @@ type FixtureEntry struct {
 }
 
 type FunctionCost struct {
-	Name             string `json:"name"`
-	FixtureID        string `json:"fixture_id"`
-	CPUInstructions  int64  `json:"cpu_instructions"`
-	MemoryBytes      int64  `json:"memory_bytes"`
-	ReadBytes        int64  `json:"read_bytes"`
-	WriteBytes       int64  `json:"write_bytes"`
-	PctOfNetworkCap  float64 `json:"pct_of_network_cap"`
+	Name            string  `json:"name"`
+	FixtureID       string  `json:"fixture_id"`
+	CPUInstructions int64   `json:"cpu_instructions"`
+	MemoryBytes     *int64  `json:"memory_bytes"` // nil when the RPC does not report memory
+	ReadBytes       int64   `json:"read_bytes"`
+	WriteBytes      int64   `json:"write_bytes"`
+	PctOfNetworkCap float64 `json:"pct_of_network_cap"`
 }
 
 type Snapshot struct {
