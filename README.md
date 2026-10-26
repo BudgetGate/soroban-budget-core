@@ -6,7 +6,7 @@
 
 - **Resource Tracking:** Compares CPU instructions, read/write bytes, and the number of ledger entries read and written. Memory is not compared: current Soroban RPC versions no longer report it from `simulateTransaction`.
 - **Regression Detection:** Automatically identifies resource regressions when a new commit exceeds baseline costs by more than 10%.
-- **CI/CD Ready:** Exits with `0` on success and `1` (or another non-zero code) on regressions, making it perfect for automated workflows.
+- **CI/CD Ready:** Distinct exit codes, so a regression is never confused with a run that failed (see [Exit codes](#exit-codes)).
 - **Markdown Reporting:** Outputs a clean, GitHub-flavored Markdown table summarizing the differences.
 
 ## 📦 Installation
@@ -57,6 +57,14 @@ Output of the example above on 2026-10-26 (exit code 0; the costs had not change
 ```
 
 A row turns `❌ REGRESSION` when a metric rises more than `--max-delta-pct`, and the CLI then exits `1`.
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | No regression. Also `-h`. |
+| `1` | At least one metric regressed. |
+| `2` | The run could not compare: bad or missing flags, unreadable or invalid files, an unsupported `schema_version`, or an RPC failure. |
 
 ## 📄 JSON Schema
 
