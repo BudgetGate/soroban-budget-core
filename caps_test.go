@@ -57,28 +57,48 @@ func TestParseCapEntries_Errors(t *testing.T) {
 	}
 }
 
-func TestParseProtocolVersion(t *testing.T) {
+func TestParseNetworkInfo(t *testing.T) {
 	tests := []struct {
-		name    string
-		body    func(t *testing.T) []byte
-		want    int
-		wantErr string
+		name           string
+		body           func(t *testing.T) []byte
+		wantProtocol   int
+		wantPassphrase string
+		wantErr        string
 	}{
-		{name: "captured getNetwork", body: func(t *testing.T) []byte { return capturedFile(t, "getnetwork.json") }, want: 29},
-		{name: "no protocolVersion", body: func(t *testing.T) []byte { return []byte(`{"jsonrpc":"2.0","id":1,"result":{}}`) }, wantErr: "no protocolVersion"},
+		{name: "captured getNetwork", body: func(t *testing.T) []byte { return capturedFile(t, "getnetwork.json") }, wantProtocol: 29, wantPassphrase: "Test SDF Network ; September 2015"},
+		{name: "no protocolVersion", body: func(t *testing.T) []byte { return []byte(`{"jsonrpc":"2.0","id":1,"result":{"passphrase":"x"}}`) }, wantErr: "no protocolVersion"},
+		{name: "no passphrase", body: func(t *testing.T) []byte { return []byte(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":29}}`) }, wantErr: "no passphrase"},
 		{name: "JSON-RPC error", body: func(t *testing.T) []byte {
 			return []byte(`{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"method not found"}}`)
 		}, wantErr: "-32601 method not found"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseProtocolVersion(tt.body(t))
+			protocol, passphrase, err := parseNetworkInfo(tt.body(t))
 			if tt.wantErr != "" {
 				assert.ErrorContains(t, err, tt.wantErr)
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.wantProtocol, protocol)
+			assert.Equal(t, tt.wantPassphrase, passphrase)
+		})
+	}
+}
+
+func TestNetworkName(t *testing.T) {
+	tests := []struct {
+		passphrase string
+		want       string
+	}{
+		{"Test SDF Network ; September 2015", "testnet"},
+		{"Public Global Stellar Network ; September 2015", "mainnet"},
+		{"Test SDF Future Network ; October 2022", "futurenet"},
+		{"Standalone Network ; February 2017", "Standalone Network ; February 2017"}, // unknown: kept as-is
+	}
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			assert.Equal(t, tt.want, networkName(tt.passphrase))
 		})
 	}
 }
@@ -95,6 +115,7 @@ func TestFetchNetworkCaps(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, testnetCaps(), caps.Limits)
 	assert.Equal(t, 29, caps.ProtocolVersion)
+	assert.Equal(t, "Test SDF Network ; September 2015", caps.Passphrase)
 	assert.Equal(t, int64(5406471), caps.Ledger)
 
 	_, err = FetchNetworkCaps(context.Background(), down.URL)

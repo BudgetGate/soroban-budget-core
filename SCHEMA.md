@@ -26,9 +26,11 @@ This schema represents the JSON contract output by `soroban-budget-core`. It is 
 
 ### Fields
 - `schema_version`: Required. The version of this schema the snapshot follows (see [Versions](#versions)).
-- `network`: The Soroban network this was tested against (e.g., `testnet`, `mainnet`).
-- `generated_at`: ISO8601 timestamp.
-- `commit_sha`: The commit hash of the contract being profiled.
+- `network`: The network the snapshot was measured on, from the RPC's `getNetwork` passphrase: `testnet`, `mainnet` or `futurenet`, or the passphrase itself for any other network.
+- `generated_at`: When the snapshot was measured, RFC 3339 in UTC (e.g. `2026-10-26T23:21:33Z`).
+- `commit_sha`: The commit of the contract code that was measured, as passed with `--commit-sha`. Empty when not given.
+
+Snapshots written before core filled these fields have `network` `"testnet"` (hardcoded), `generated_at` `""` and `commit_sha` `"dynamic"`.
 - `functions`: An array of profiling results for specific invoked functions.
 - `functions[].memory_bytes`: May be `null` when the RPC did not report memory usage (current `simulateTransaction` responses do not). Consumers must treat `null` as "unknown", not as `0`. `soroban-budget-core` does not currently compare or report this field.
 - `functions[].read_bytes`: The RPC's `diskReadBytes`. Since protocol 23 this covers only classic and archived entries; reads of live contract storage are **not** included.

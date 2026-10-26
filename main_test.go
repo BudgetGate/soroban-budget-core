@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRunExitCodes(t *testing.T) {
@@ -143,7 +144,8 @@ func TestRunOutputJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			got := run([]string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpc.URL, "--output-json", tt.out}, &stdout, &stderr)
+			before := time.Now().UTC().Truncate(time.Second)
+			got := run([]string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpc.URL, "--output-json", tt.out, "--commit-sha", "abc1234"}, &stdout, &stderr)
 			assert.Equal(t, tt.want, got, "stderr: %s", stderr.String())
 			assert.Contains(t, stderr.String(), tt.wantStderr)
 			// The report is printed before the snapshot is written, so it is there either way.
@@ -161,6 +163,14 @@ func TestRunOutputJSON(t *testing.T) {
 			assert.Equal(t, int64(1000), s.Functions[0].CPUInstructions)
 			// Highest share of a cap: 144 read bytes of the 200,000 testnet limit.
 			assert.InDelta(t, 0.072, s.Functions[0].PctOfNetworkCap, 1e-9)
+
+			// Metadata: network from the RPC's passphrase, the --commit-sha value, and the time of the run.
+			assert.Equal(t, "testnet", s.Network)
+			assert.Equal(t, "abc1234", s.CommitSHA)
+			generated, err := time.Parse(time.RFC3339, s.GeneratedAt)
+			require.NoError(t, err)
+			assert.False(t, generated.Before(before), "generated_at %s is before the run started", s.GeneratedAt)
+			assert.WithinDuration(t, time.Now(), generated, time.Minute)
 		})
 	}
 }
