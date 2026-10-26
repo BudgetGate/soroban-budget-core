@@ -1,11 +1,16 @@
 # Soroban Budget Guard - Core Engine
 
-`soroban-budget-core` is the foundational Go-based CLI tool for the **BudgetGate** suite. It parses snapshot data from Soroban smart contract simulations, compares current resource usage against a baseline, detects regressions, and outputs a formatted Markdown report.
+`soroban-budget-core` is the Go CLI at the heart of the **BudgetGate** suite. It simulates Soroban contract calls with the RPC method `simulateTransaction`, compares the measured resource cost against a baseline snapshot, and prints a Markdown report.
+
+**Documentation:** [budgetgate.github.io/docs](https://budgetgate.github.io/docs/core/). This README covers building and running core; the docs site explains how the numbers are measured.
+
+> **Status:** early-stage. Not audited and not production-ready. No releases yet; build from source.
 
 ## 🚀 Features
 
 - **Resource Tracking:** Compares CPU instructions, read/write bytes, and the number of ledger entries read and written. Memory is not compared: current Soroban RPC versions no longer report it from `simulateTransaction`.
-- **Regression Detection:** Automatically identifies resource regressions when a new commit exceeds baseline costs by more than 10%.
+- **Regression Detection:** Flags a metric that rises by more than a percentage (10% by default) or by more than an absolute amount you set. Functions added to or removed from the fixture are reported too.
+- **Network Caps:** Shows how close each metric is to the network's per-transaction limit, read live from the RPC.
 - **CI/CD Ready:** Distinct exit codes, so a regression is never confused with a run that failed (see [Exit codes](#exit-codes)).
 - **Markdown Reporting:** Outputs a clean, GitHub-flavored Markdown table summarizing the differences.
 
@@ -14,17 +19,19 @@
 Ensure you have [Go](https://golang.org/dl/) 1.25 or later installed. No other runtime is needed; XDR is decoded natively with the Stellar Go SDK.
 
 ```bash
-# Clone the repository
+git clone https://github.com/BudgetGate/soroban-budget-core.git
 cd soroban-budget-core
-
-# Build the binary
-go build -o budget-core
+go build -o budget-core .
 ```
 
 ## 🛠️ Usage
 
-1. Ensure you have a baseline generated.
-2. Provide an XDR payload or fixture to test against via `--fixture` or an existing snapshot via `--new`.
+1. Provide a baseline snapshot with `--baseline`. For the first run, start from an empty one and save the result as your baseline:
+   ```bash
+   echo '{"schema_version":"2.0","functions":[]}' > empty.json
+   ./budget-core --baseline empty.json --fixture fixture.json --output-json baseline.json
+   ```
+2. Provide a [fixture](./SCHEMA.md#fixture-schema-input) of contract calls to simulate with `--fixture`, or an existing snapshot with `--new`.
 3. Provide the testnet or mainnet RPC URL via `--rpc-url`.
 4. (Optional) With `--output-json`, pass `--commit-sha` to record which commit of your contract was measured. The snapshot also records the network (read from the RPC) and when it was generated.
 5. (Optional) Tune the thresholds. Each one is off when set to `0`; negative values are rejected.
@@ -86,7 +93,7 @@ Output of the example above on 2026-10-27 (exit code 0; the costs had not change
 % of Cap uses the network's per-transaction limits at protocol 29, ledger 5406551.
 ```
 
-A row turns `❌ REGRESSION` when a metric rises more than `--max-delta-pct`, and the CLI then exits `1`.
+A row turns `❌ REGRESSION` when a metric breaks its percentage or absolute limit, and the CLI then exits `1`. All statuses, including `🆕 NEW` and `🗑️ REMOVED` functions, are listed in the [report reference](https://budgetgate.github.io/docs/core/api-reference#report).
 
 ### Exit codes
 
@@ -104,11 +111,13 @@ The tool expects snapshots to follow a specific JSON schema. See the [`SCHEMA.md
 
 ## 🧪 Development & Testing
 
-To run the internal test suite:
-
 ```bash
-go test ./... -v
+gofmt -l .        # must print nothing
+go vet ./...
+go test ./...     # no network access needed
 ```
+
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) before opening a pull request.
 
 ## 🤝 Integration
 

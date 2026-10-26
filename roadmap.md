@@ -22,7 +22,8 @@ Last updated: 2026-10-26 (after #9)
 - Phase 3 is done.
 - C5c done: fixture-built snapshots record `network` (from the RPC's passphrase), `generated_at` (UTC) and `commit_sha` (`--commit-sha`).
 - C6 done: the broken `budget-core` binary, `PR_BODY.md` and `website/` are gone; `/budget-core` is ignored.
-- Next up: C14 (repo docs). After that only C12 (release, when the maintainer asks) and committing the counter contract remain.
+- C14 done: `DOCUMENTATION.md` removed (the docs site covers it), README claims checked against the code and linked to the docs site, `CONTRIBUTING.md` rewritten.
+- Every defect in `CLAUDE.md` section 3 except C12 is fixed. Left: C12 (release, only when the maintainer asks) and committing the counter contract under `testdata/`.
 - Rule learned the hard way: do not stack PRs on feature branches. Base every PR on `main`.
 
 ## Phase 1 — Real measurement
@@ -56,7 +57,7 @@ Last updated: 2026-10-26 (after #9)
 - [x] C5b: report functions added to or removed from the baseline
 - [x] C5c: real `network`, `commit_sha` and `generated_at` in snapshots
 - [x] C6: remove the committed `budget-core` binary and add it to `.gitignore`; resolve `PR_BODY.md` and `website/` (both removed)
-- [ ] C14: README, `DOCUMENTATION.md` and `CONTRIBUTING.md` match the code, or point to the docs site
+- [x] C14: README, `DOCUMENTATION.md` and `CONTRIBUTING.md` match the code, or point to the docs site (`DOCUMENTATION.md` removed)
 - [x] Replace placeholder `baseline.json`/`new.json` with a real snapshot (`testdata/snapshot_testnet.json`, C11)
 
 ## Phase 5 — Release (only when the maintainer asks)

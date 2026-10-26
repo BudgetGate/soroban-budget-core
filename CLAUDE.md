@@ -1,12 +1,12 @@
 # CLAUDE.md — soroban-budget-core
 
-Scope: this repo only. If the workspace-level `CLAUDE.md` exists in the parent folder, read it as well. Where the two differ, this file wins for this repo. The defect table below was checked against `origin/main` (`72f09f9`) on 2026-10-26. Re-verify an item before relying on it.
+Scope: this repo only. If the workspace-level `CLAUDE.md` exists in the parent folder, read it as well. Where the two differ, this file wins for this repo. The defect table below was checked against `origin/main` (`c060e90`) on 2026-10-27. Re-verify an item before relying on it.
 
 ## 1. What this repo is
 
 The engine of Budget Gate. A Go CLI that takes a baseline snapshot of Soroban contract resource costs and a new snapshot, compares them, and prints a Markdown report. Its second job is to produce the new snapshot itself by calling the Soroban RPC method `simulateTransaction` (`--fixture`). That path makes real RPC calls and was verified against a deployed contract (section 3).
 
-User docs live in the separate `BudgetGate/docs` site (budgetgate.github.io/docs/), which describes this repo as of `72f09f9`. A PR here that changes flags, exit codes, output or the schema needs a matching docs PR, linked from both descriptions.
+User docs live in the separate `BudgetGate/docs` site (budgetgate.github.io/docs/), which describes this repo as of `c060e90` (each PR since #12 shipped with a matching docs PR). A PR here that changes flags, exit codes, output or the schema needs a matching docs PR, linked from both descriptions.
 
 This repo owns the snapshot schema. The Action and the dashboard both depend on it. It must work standalone, outside GitHub.
 
@@ -17,7 +17,7 @@ Boundaries:
 
 ## 2. Known layout
 
-State of `main` on 2026-10-26 (`72f09f9`, after #4–#10). Module `github.com/budgetgate/soroban-budget-core`, `go 1.25`. Direct dependencies: `github.com/stellar/go-stellar-sdk v0.7.3` (XDR decoding in `rpc.go`, `txnbuild` in `cmd/genfixture`), `github.com/stretchr/testify v1.11.1`.
+State of `main` on 2026-10-27 (`c060e90`, after #4–#23). Module `github.com/budgetgate/soroban-budget-core`, `go 1.25`. Direct dependencies: `github.com/stellar/go-stellar-sdk v0.7.3` (XDR decoding in `rpc.go`, `txnbuild` in `cmd/genfixture`), `github.com/stretchr/testify v1.11.1`.
 
 | File | Role (read in full unless stated) |
 |------|------|
@@ -31,25 +31,24 @@ State of `main` on 2026-10-26 (`72f09f9`, after #4–#10). Module `github.com/bu
 | `SCHEMA.md` | Snapshot format (v2.0, with a version history and the reading rules) and fixture format (`[{name, fixture_id, xdr}]`). Authoritative. |
 | `testdata/` | `fixture.json` (`balance_check` read-only, `transfer_to_contract` writes storage; testnet native-asset contract), `simulate_*.json` (captured responses), `getledgerentries_config.json` and `getnetwork.json` (captured cap and protocol responses, protocol 29), `snapshot_testnet.json` (real snapshot, schema 2.0, with `pct_of_network_cap`). Provenance and regeneration in `testdata/README.md`. |
 | `.github/workflows/ci.yml` | `Core CI`, job `build-and-test`: `go build`, `go test`. Go version from `go.mod`. Runs on push/PR to `main` only. |
-| `DOCUMENTATION.md`, `CONTRIBUTING.md`, `README.md` | See C14. `.gitignore` ignores `/budget-core`, the local build output. |
+| `README.md`, `CONTRIBUTING.md` | Building, running, flags, exit codes; contribution rules. User-facing explanations live on the docs site, which the README links to. `.gitignore` ignores `/budget-core`, the local build output. |
 
 ## 3. Known defects
 
-Checked 2026-10-26 against `origin/main` (`72f09f9`). "Open PR" means a fix exists but is not merged to `main`.
+Checked 2026-10-27 against `origin/main` (`c060e90`). "Open PR" means a fix exists but is not merged to `main`.
 
 | ID | Defect | Evidence | Open PR |
 |----|--------|----------|---------|
 | C12 | No GitHub release. Only tag `v0.1.0`. The Action downloads `budget-core-linux-amd64` from a release that does not exist. | GitHub API | — |
-| C14 | Repo docs are out of date and duplicate the docs site. `DOCUMENTATION.md` says the default threshold is 5% (it is 10) and calls the CLI "high-performance". `CONTRIBUTING.md` says Go 1.21+ (`go.mod` needs 1.25). | `DOCUMENTATION.md`, `CONTRIBUTING.md`, `go.mod` | — |
 
-Resolved and removed: the old `--fixture` mock (removed before #4 in `a79bcd9`), Node-based XDR decoding and the always-0 memory (#4), the README/go.mod Go version mismatch (#4), padded CPU instructions (C2b, #5), `read_bytes` blind to contract storage (C2c, #6: footprint entry counts), no HTTP timeout (C8, #8), test data in Go constants and placeholder sample snapshots (C11: real captures and a real snapshot under `testdata/`, table-driven tests), CRLF checkouts on Windows breaking `gofmt -l .` (C15: `.gitattributes`), errors exiting 1 like a regression (C4: every error now exits 2), messages mixed into the report on stdout (C9: stdout is the report only), `--output-json` failures ignored (C13: now exit 2 with the error on stderr), RPC HTTP status not checked (C16: non-200 now fails with the status and a body snippet), added and removed functions skipped silently (C5b: `🆕 NEW` rows with values and cap usage, one `🗑️ REMOVED` row; neither fails the run), one threshold flag only (C3: `--cap-warning-pct` and per-metric absolute-increase flags; a single absolute number across metrics was rejected because CPU and entry counts differ by five orders of magnitude), unversioned schema (C10: snapshots are written as `2.0`; `1.0` and `2.0` are read; anything else exits 2), a broken committed binary, a stale `PR_BODY.md` and an unexplained `website/` template with a fabricated demo result (C6: all removed, `/budget-core` ignored), placeholder snapshot metadata (C5c: `network` from the RPC's passphrase, `generated_at` in UTC, `commit_sha` from `--commit-sha`), hardcoded unsourced caps (C5: read live from the network on every run; the old 100M / 10 MB / 1 MB values were 4×–50× off testnet's protocol-29 limits; `--fail-on-cap-warning` opt-in; `pct_of_network_cap` populated). #5–#7 reached `main` through #9; #8 merged into `feat/drop-memory-from-report` before #9 merged and reached `main` with it.
+Resolved and removed: the old `--fixture` mock (removed before #4 in `a79bcd9`), Node-based XDR decoding and the always-0 memory (#4), the README/go.mod Go version mismatch (#4), padded CPU instructions (C2b, #5), `read_bytes` blind to contract storage (C2c, #6: footprint entry counts), no HTTP timeout (C8, #8), test data in Go constants and placeholder sample snapshots (C11: real captures and a real snapshot under `testdata/`, table-driven tests), CRLF checkouts on Windows breaking `gofmt -l .` (C15: `.gitattributes`), errors exiting 1 like a regression (C4: every error now exits 2), messages mixed into the report on stdout (C9: stdout is the report only), `--output-json` failures ignored (C13: now exit 2 with the error on stderr), RPC HTTP status not checked (C16: non-200 now fails with the status and a body snippet), added and removed functions skipped silently (C5b: `🆕 NEW` rows with values and cap usage, one `🗑️ REMOVED` row; neither fails the run), one threshold flag only (C3: `--cap-warning-pct` and per-metric absolute-increase flags; a single absolute number across metrics was rejected because CPU and entry counts differ by five orders of magnitude), unversioned schema (C10: snapshots are written as `2.0`; `1.0` and `2.0` are read; anything else exits 2), out-of-date repo docs (C14: `DOCUMENTATION.md` removed in favour of the docs site; README claims checked against the code; `CONTRIBUTING.md` rewritten for Go 1.25 and this repo's rules), a broken committed binary, a stale `PR_BODY.md` and an unexplained `website/` template with a fabricated demo result (C6: all removed, `/budget-core` ignored), placeholder snapshot metadata (C5c: `network` from the RPC's passphrase, `generated_at` in UTC, `commit_sha` from `--commit-sha`), hardcoded unsourced caps (C5: read live from the network on every run; the old 100M / 10 MB / 1 MB values were 4×–50× off testnet's protocol-29 limits; `--fail-on-cap-warning` opt-in; `pct_of_network_cap` populated). #5–#7 reached `main` through #9; #8 merged into `feat/drop-memory-from-report` before #9 merged and reached `main` with it.
 
 Measurement verified on 2026-10-26 against a deployed counter contract v1 → v2, with core built from #9's head + #8 (= `main`): CPU 291,573 → 449,005, WriteBytes 80 → 380, ReadEntries 3 → 6, WriteEntries 1 → 4, exit 1 on v2; rerun steps in the workspace repo's `verification/counter-contract/README.md`. Not verified: that the post-#5 CPU figure equals what an executed transaction is charged.
 
 ## 4. Work order for this repo
 
-1. C14: bring repo docs in line (or point them at the docs site).
-2. C12: tag a release with a built binary only when asked.
+1. C12: tag a release with a built binary only when asked.
+2. Commit the v1/v2 counter contract under `testdata/` so the measurement check can be rerun from this repo (it lives in the private workspace repo today).
 
 `roadmap.md` tracks progress against this list.
 
