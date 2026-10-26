@@ -33,3 +33,6 @@ go.work.sum
 
 # Node tooling is not used by this Go module
 node_modules/
+
+# Local build output (go build -o budget-core .); release binaries are attached to GitHub releases, not committed
+/budget-core
