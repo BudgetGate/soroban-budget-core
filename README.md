@@ -28,24 +28,35 @@ go build -o budget-core
 3. Provide the testnet or mainnet RPC URL via `--rpc-url`.
 4. (Optional) Provide `--max-delta-pct` (default is 10.0) to configure the regression threshold.
 
-The bundled `fixture.json` targets soroban-testnet. Regenerate it with `go run ./cmd/genfixture > fixture.json` after a testnet reset.
+`testdata/fixture.json` targets soroban-testnet, and `testdata/snapshot_testnet.json` is a snapshot core measured from it. After a testnet reset, regenerate the fixture with `go run ./cmd/genfixture > testdata/fixture.json` (see [`testdata/README.md`](./testdata/README.md)).
 
 Example:
 ```bash
-./budget-core --baseline baseline.json --fixture fixture.json --rpc-url https://soroban-testnet.stellar.org --max-delta-pct 10.0
+./budget-core --baseline testdata/snapshot_testnet.json --fixture testdata/fixture.json --rpc-url https://soroban-testnet.stellar.org --max-delta-pct 10.0
 ```
 
 The CLI will produce a Markdown formatted table comparing the costs and surfacing regressions if they exceed the specified `--max-delta-pct` or reach a hardcoded network absolute cap (e.g. 100M CPU instructions).
 
 ### Example Output
 
+Output of the example above on 2026-10-26 (exit code 0; the costs had not changed since the snapshot was taken):
+
 ```markdown
-| Function | Metric | Baseline | New | Delta | % Change | Status |
-|----------|--------|----------|-----|-------|----------|--------|
-| mint | CPUInstructions | 1000 | 1100 | 100 | 10.00% | ❌ REGRESSION |
-| mint | ReadBytes | 200 | 210 | 10 | 5.00% | ✅ OK |
-| mint | WriteBytes | 100 | 100 | 0 | 0.00% | ✅ OK |
+| Function | Metric | Baseline | New | Delta | % Change | % of Cap | Status |
+|----------|--------|----------|-----|-------|----------|----------|--------|
+| balance_check | CPUInstructions | 91406 | 91406 | 0 | 0.00% | 0.09% | ✅ OK |
+| balance_check | ReadBytes | 144 | 144 | 0 | 0.00% | 0.00% | ✅ OK |
+| balance_check | WriteBytes | 0 | 0 | 0 | 0.00% | 0.00% | ✅ OK |
+| balance_check | ReadEntries | 2 | 2 | 0 | 0.00% | 0.00% | ✅ OK |
+| balance_check | WriteEntries | 0 | 0 | 0 | 0.00% | 0.00% | ✅ OK |
+| transfer_to_contract | CPUInstructions | 218663 | 218663 | 0 | 0.00% | 0.22% | ✅ OK |
+| transfer_to_contract | ReadBytes | 144 | 144 | 0 | 0.00% | 0.00% | ✅ OK |
+| transfer_to_contract | WriteBytes | 368 | 368 | 0 | 0.00% | 0.04% | ✅ OK |
+| transfer_to_contract | ReadEntries | 3 | 3 | 0 | 0.00% | 0.00% | ✅ OK |
+| transfer_to_contract | WriteEntries | 2 | 2 | 0 | 0.00% | 0.00% | ✅ OK |
 ```
+
+A row turns `❌ REGRESSION` when a metric rises more than `--max-delta-pct`, and the CLI then exits `1`.
 
 ## 📄 JSON Schema
 

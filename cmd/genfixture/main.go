@@ -1,4 +1,4 @@
-// Command genfixture regenerates fixture.json against soroban-testnet.
+// Command genfixture regenerates testdata/fixture.json against soroban-testnet.
 //
 // It funds a fresh account with friendbot and builds one transaction envelope per fixture,
 // calling the testnet native asset contract:
@@ -12,7 +12,7 @@
 //
 // Testnet is reset periodically; rerun this when the fixture account no longer exists:
 //
-//	go run ./cmd/genfixture > fixture.json
+//	go run ./cmd/genfixture > testdata/fixture.json
 package main
 
 import (

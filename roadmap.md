@@ -9,7 +9,8 @@ Last updated: 2026-10-26 (after #9)
 - Phase 1 is done. `main` (`72f09f9`) has #4–#10: native XDR decoding, actual CPU via two-leeway simulation, footprint entry counts, memory out of the comparison, HTTP timeout with context. Verified against the deployed counter contract (numbers in `CLAUDE.md` section 3).
 - The docs site (budgetgate.github.io/docs/) now describes this `main`, including its known limitations. Changing user-facing behaviour needs a matching `BudgetGate/docs` PR.
 - C10 done: snapshots are written as schema `2.0`; `1.0` and `2.0` are read; a missing or unknown version exits 2 with an error on stderr.
-- Next up: C11 (test data under `testdata/`, table-driven tests), then C15.
+- C11 done: test data lives in `testdata/` (captured testnet responses, the fixture, a real snapshot); tests are table-driven; the README example prints a full report.
+- Next up: C15 (`.gitattributes`), then phase 3.
 - Rule learned the hard way: do not stack PRs on feature branches. Base every PR on `main`.
 
 ## Phase 1 — Real measurement
@@ -25,7 +26,7 @@ Last updated: 2026-10-26 (after #9)
 ## Phase 2 — Schema and test data
 
 - [x] C10: bump `schema_version` to `2.0`, document it in `SCHEMA.md`, reject snapshots with a missing or unknown version (exit 2)
-- [ ] C11: move captured RPC responses to `testdata/`, table-driven tests, move sample snapshots and fixtures out of the repo root, make the README example produce a non-empty report
+- [x] C11: move captured RPC responses to `testdata/`, table-driven tests, move sample snapshots and fixtures out of the repo root, make the README example produce a non-empty report
 - [ ] C15: `.gitattributes` so Go files stay LF on Windows checkouts
 - [ ] Commit the v1/v2 counter contract used for verification under `testdata/` so the check can be rerun (it lives in the private workspace repo today)
 
@@ -36,6 +37,7 @@ Last updated: 2026-10-26 (after #9)
 - [ ] C5: read network caps from the network, record the protocol version, decide whether a cap breach fails the run, populate `pct_of_network_cap`
 - [ ] C9: report on stdout only; progress and errors on stderr
 - [ ] C13: fail with a clear error when `--output-json` cannot be written
+- [ ] C16: check the RPC's HTTP status and report it
 
 ## Phase 4 — Correct reports and a clean repo
 
@@ -43,7 +45,7 @@ Last updated: 2026-10-26 (after #9)
 - [ ] C5c: real `network`, `commit_sha` and `generated_at` in snapshots
 - [ ] C6: remove the committed `budget-core` binary and add it to `.gitignore`; resolve `PR_BODY.md` and `website/`
 - [ ] C14: README, `DOCUMENTATION.md` and `CONTRIBUTING.md` match the code, or point to the docs site
-- [ ] Regenerate `baseline.json` from real measurements
+- [x] Replace placeholder `baseline.json`/`new.json` with a real snapshot (`testdata/snapshot_testnet.json`, C11)
 
 ## Phase 5 — Release (only when the maintainer asks)
 

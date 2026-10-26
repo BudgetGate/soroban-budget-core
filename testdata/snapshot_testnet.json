@@ -1,0 +1,30 @@
+{
+  "schema_version": "2.0",
+  "network": "testnet",
+  "generated_at": "",
+  "commit_sha": "dynamic",
+  "functions": [
+    {
+      "name": "balance_check",
+      "fixture_id": "test_balance",
+      "cpu_instructions": 91406,
+      "memory_bytes": null,
+      "read_bytes": 144,
+      "write_bytes": 0,
+      "read_entries": 2,
+      "write_entries": 0,
+      "pct_of_network_cap": 0
+    },
+    {
+      "name": "transfer_to_contract",
+      "fixture_id": "test_transfer_to_contract",
+      "cpu_instructions": 218663,
+      "memory_bytes": null,
+      "read_bytes": 144,
+      "write_bytes": 368,
+      "read_entries": 3,
+      "write_entries": 2,
+      "pct_of_network_cap": 0
+    }
+  ]
+}
