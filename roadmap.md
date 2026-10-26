@@ -2,31 +2,31 @@
 
 Progress tracker for this repo. The defect IDs (C2b, C3, …) and their evidence are in `CLAUDE.md` section 3; the order comes from `CLAUDE.md` section 4. Tick a box only when the change is merged to `main`, not when a PR is open.
 
-Last updated: 2026-10-26
+Last updated: 2026-10-26 (after #9)
 
 ## Where I left off
 
-- `main` has PR #4: native Go XDR decoding, no Node dependency, nullable `memory_bytes`, failed simulations exit non-zero.
-- #5, #6 and #7 were merged into their stacked base branches instead of `main`. **PR #9** lands them on `main` unchanged.
-- **PR #8** (HTTP timeout) still targets `feat/drop-memory-from-report`. Retarget it to `main` after #9 merges, then merge it.
-- Next up after that: phase 2 (schema version, `testdata/`).
+- Phase 1 is done. `main` (`72f09f9`) has #4–#10: native XDR decoding, actual CPU via two-leeway simulation, footprint entry counts, memory out of the comparison, HTTP timeout with context. Verified against the deployed counter contract (numbers in `CLAUDE.md` section 3).
+- The docs site (budgetgate.github.io/docs/) now describes this `main`, including its known limitations. Changing user-facing behaviour needs a matching `BudgetGate/docs` PR.
+- Next up: phase 2. Start with C10 (schema version), since C11 moves the test data that C10's tests will use.
 - Rule learned the hard way: do not stack PRs on feature branches. Base every PR on `main`.
 
 ## Phase 1 — Real measurement
 
 - [x] Decode `transactionData` XDR in Go, drop the Node script and committed `node_modules/` (#4)
 - [x] Record `memory_bytes` as `null` instead of a fake 0; fail on `result.error` (#4)
-- [x] Verify against a deployed contract v1 → v2; numbers moved as expected (2026-10-26, evidence in #4)
-- [ ] C2b: report actual CPU instructions, not the RPC's padded estimate (#5, landing via #9)
-- [ ] C2c: footprint entry counts, storage-writing fixture, `cmd/genfixture` (#6, landing via #9)
-- [ ] Drop memory from the comparison until a real source exists (#7, landing via #9)
-- [ ] C8: `http.Client` with timeout and context for all HTTP (#8)
+- [x] C2b: report actual CPU instructions, not the RPC's padded estimate (#5, via #9)
+- [x] C2c: footprint entry counts, storage-writing fixture, `cmd/genfixture` (#6, via #9)
+- [x] Drop memory from the comparison until a real source exists (#7, via #9)
+- [x] C8: `http.Client` with timeout and context for all HTTP (#8, via #9)
+- [x] Verify against a deployed contract v1 → v2 with the merged code; numbers moved as expected (2026-10-26)
 
 ## Phase 2 — Schema and test data
 
 - [ ] C10: bump `schema_version`, document v2 in `SCHEMA.md`, reject baselines with an unknown version
 - [ ] C11: move captured RPC responses to `testdata/`, table-driven tests, move sample snapshots and fixtures out of the repo root, make the README example produce a non-empty report
-- [ ] Commit the v1/v2 counter contract used for verification under `testdata/` so the check can be rerun
+- [ ] C15: `.gitattributes` so Go files stay LF on Windows checkouts
+- [ ] Commit the v1/v2 counter contract used for verification under `testdata/` so the check can be rerun (it lives in the private workspace repo today)
 
 ## Phase 3 — Thresholds, exit codes, output
 
@@ -34,12 +34,14 @@ Last updated: 2026-10-26
 - [ ] C4: exit codes 0 pass, 1 regression, 2 usage/runtime error; document in README
 - [ ] C5: read network caps from the network, record the protocol version, decide whether a cap breach fails the run, populate `pct_of_network_cap`
 - [ ] C9: report on stdout only; progress and errors on stderr
+- [ ] C13: fail with a clear error when `--output-json` cannot be written
 
 ## Phase 4 — Correct reports and a clean repo
 
 - [ ] C5b: report functions added to or removed from the baseline
 - [ ] C5c: real `network`, `commit_sha` and `generated_at` in snapshots
 - [ ] C6: remove the committed `budget-core` binary and add it to `.gitignore`; resolve `PR_BODY.md` and `website/`
+- [ ] C14: README, `DOCUMENTATION.md` and `CONTRIBUTING.md` match the code, or point to the docs site
 - [ ] Regenerate `baseline.json` from real measurements
 
 ## Phase 5 — Release (only when the maintainer asks)
@@ -50,4 +52,7 @@ Last updated: 2026-10-26
 
 - [ ] Branch protection on `main`: currently 0 required reviews and no required status checks. Consider requiring `Core CI / build-and-test`.
 - [ ] Repo topics and description (none set).
-- [ ] Delete the merged intermediate branches `fix/native-xdr-decoding`, `fix/exact-cpu-instructions` and `feat/storage-fixtures-footprint` once #9 is in.
+- [ ] Delete stale branches (checked 2026-10-26):
+  - Fully in `main`: `feat/drop-memory-from-report`, `fix/http-client-timeout`, `docs/claude-md-and-roadmap`, `feature/complete-missing-specs`.
+  - One GitHub merge commit ahead of `main`, but both its parents are in `main`, so no unique content: `fix/native-xdr-decoding`, `fix/exact-cpu-instructions`, `feat/storage-fixtures-footprint`.
+  - Has one unmerged commit (`3fedc4f`): `feature/ui-ux-docs-overhaul` adds `SECURITY.md` (the missing core copy; same text as action/dashboard), `pr_body_core.md`, and a 7.6 MB compiled binary `soroban-budget-core`. Do not merge it. Salvage `SECURITY.md` in its own PR if wanted, then delete the branch.
