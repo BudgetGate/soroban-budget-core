@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/stellar/go-stellar-sdk/network"
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
 
@@ -12,8 +13,22 @@ import (
 // so they follow protocol upgrades and differ correctly between networks.
 type NetworkCaps struct {
 	ProtocolVersion int
+	Passphrase      string           // network passphrase reported by getNetwork
 	Ledger          int64            // latest ledger when the limits were read
 	Limits          map[string]int64 // by metric name, e.g. "CPUInstructions"
+}
+
+// networkName returns the usual name for a known network passphrase, or the passphrase itself.
+func networkName(passphrase string) string {
+	switch passphrase {
+	case network.PublicNetworkPassphrase:
+		return "mainnet"
+	case network.TestNetworkPassphrase:
+		return "testnet"
+	case network.FutureNetworkPassphrase:
+		return "futurenet"
+	}
+	return passphrase
 }
 
 // capSettings are the config settings that hold the per-transaction limits core compares against.
@@ -52,12 +67,12 @@ func FetchNetworkCaps(ctx context.Context, rpcURL string) (NetworkCaps, error) {
 	if err != nil {
 		return NetworkCaps{}, fmt.Errorf("getNetwork: %w", err)
 	}
-	protocol, err := parseProtocolVersion(body)
+	protocol, passphrase, err := parseNetworkInfo(body)
 	if err != nil {
 		return NetworkCaps{}, err
 	}
 
-	return NetworkCaps{ProtocolVersion: protocol, Ledger: ledger, Limits: limits}, nil
+	return NetworkCaps{ProtocolVersion: protocol, Passphrase: passphrase, Ledger: ledger, Limits: limits}, nil
 }
 
 // parseCapEntries maps a getLedgerEntries response for capSettings to limits by metric name.
@@ -112,22 +127,26 @@ func parseCapEntries(body []byte) (map[string]int64, int64, error) {
 	return limits, resp.Result.LatestLedger, nil
 }
 
-// parseProtocolVersion reads protocolVersion from a getNetwork response.
-func parseProtocolVersion(body []byte) (int, error) {
+// parseNetworkInfo reads protocolVersion and passphrase from a getNetwork response.
+func parseNetworkInfo(body []byte) (int, string, error) {
 	var resp struct {
 		Result struct {
-			ProtocolVersion int `json:"protocolVersion"`
+			ProtocolVersion int    `json:"protocolVersion"`
+			Passphrase      string `json:"passphrase"`
 		} `json:"result"`
 		Error *rpcError `json:"error,omitempty"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return 0, fmt.Errorf("getNetwork: failed to decode response: %w", err)
+		return 0, "", fmt.Errorf("getNetwork: failed to decode response: %w", err)
 	}
 	if resp.Error != nil {
-		return 0, fmt.Errorf("getNetwork: %w", resp.Error)
+		return 0, "", fmt.Errorf("getNetwork: %w", resp.Error)
 	}
 	if resp.Result.ProtocolVersion <= 0 {
-		return 0, fmt.Errorf("getNetwork: response has no protocolVersion")
+		return 0, "", fmt.Errorf("getNetwork: response has no protocolVersion")
 	}
-	return resp.Result.ProtocolVersion, nil
+	if resp.Result.Passphrase == "" {
+		return 0, "", fmt.Errorf("getNetwork: response has no passphrase")
+	}
+	return resp.Result.ProtocolVersion, resp.Result.Passphrase, nil
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 )
 
 // Exit codes. A regression must be distinguishable from a run that could not compare at all.
@@ -31,6 +32,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	fixturePath := fs.String("fixture", "", "Path to fixture JSON containing XDRs for simulation")
 	rpcURL := fs.String("rpc-url", "https://soroban-testnet.stellar.org", "Soroban RPC URL")
 	outputJson := fs.String("output-json", "", "Path to write the new snapshot JSON to")
+	commitSHA := fs.String("commit-sha", "", "Commit of the contract code being measured, recorded in the snapshot (fixture runs)")
 	maxDeltaPct := fs.Float64("max-delta-pct", 10.0, "Maximum allowed percentage increase in resource usage (0 disables)")
 	capWarningPct := fs.Float64("cap-warning-pct", 80.0, "Warn when a metric exceeds this percentage of its network cap (0 disables)")
 	failOnCapWarning := fs.Bool("fail-on-cap-warning", false, "Exit 1 when any metric has a cap warning")
@@ -144,10 +146,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 			funcs = append(funcs, fc)
 		}
 
+		// A fixture run always reads the network caps, so the network is known here.
 		newSnapshot = &Snapshot{
 			SchemaVersion: CurrentSchemaVersion,
-			Network:       "testnet",
-			CommitSHA:     "dynamic",
+			Network:       networkName(caps.Passphrase),
+			GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
+			CommitSHA:     *commitSHA,
 			Functions:     funcs,
 		}
 	} else {

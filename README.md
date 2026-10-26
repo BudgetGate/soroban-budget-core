@@ -26,7 +26,8 @@ go build -o budget-core
 1. Ensure you have a baseline generated.
 2. Provide an XDR payload or fixture to test against via `--fixture` or an existing snapshot via `--new`.
 3. Provide the testnet or mainnet RPC URL via `--rpc-url`.
-4. (Optional) Tune the thresholds. Each one is off when set to `0`; negative values are rejected.
+4. (Optional) With `--output-json`, pass `--commit-sha` to record which commit of your contract was measured. The snapshot also records the network (read from the RPC) and when it was generated.
+5. (Optional) Tune the thresholds. Each one is off when set to `0`; negative values are rejected.
 
 | Flag | Default | Effect |
 |------|---------|--------|
