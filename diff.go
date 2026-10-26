@@ -19,6 +19,7 @@ type DiffResult struct {
 	AbsoluteCapPct float64
 	Regression     bool
 	CapWarning     bool
+	Unavailable    bool // metric missing from the baseline or the new snapshot
 }
 
 func getCap(metric string) int64 {
@@ -46,13 +47,20 @@ func CompareSnapshots(baseline, newSnapshot *Snapshot, thresholds Thresholds) []
 	for _, newFn := range newSnapshot.Functions {
 		if baseFn, exists := baselineMap[newFn.Name]; exists {
 			results = append(results, compareMetric(newFn.Name, "CPUInstructions", baseFn.CPUInstructions, newFn.CPUInstructions, thresholds))
-			results = append(results, compareMetric(newFn.Name, "MemoryBytes", baseFn.MemoryBytes, newFn.MemoryBytes, thresholds))
+			results = append(results, compareOptionalMetric(newFn.Name, "MemoryBytes", baseFn.MemoryBytes, newFn.MemoryBytes, thresholds))
 			results = append(results, compareMetric(newFn.Name, "ReadBytes", baseFn.ReadBytes, newFn.ReadBytes, thresholds))
 			results = append(results, compareMetric(newFn.Name, "WriteBytes", baseFn.WriteBytes, newFn.WriteBytes, thresholds))
 		}
 	}
 
 	return results
+}
+
+func compareOptionalMetric(funcName, metric string, baseVal, newVal *int64, thresholds Thresholds) DiffResult {
+	if baseVal == nil || newVal == nil {
+		return DiffResult{FunctionName: funcName, Metric: metric, Unavailable: true}
+	}
+	return compareMetric(funcName, metric, *baseVal, *newVal, thresholds)
 }
 
 func compareMetric(funcName, metric string, baseVal, newVal int64, thresholds Thresholds) DiffResult {
@@ -100,6 +108,11 @@ func FormatDiffs(results []DiffResult) string {
 	markdown += "|----------|--------|----------|-----|-------|----------|----------|--------|\n"
 
 	for _, res := range results {
+		if res.Unavailable {
+			markdown += fmt.Sprintf("| %s | %s | n/a | n/a | n/a | n/a | n/a | ➖ NOT REPORTED |\n", res.FunctionName, res.Metric)
+			continue
+		}
+
 		status := "✅ OK"
 		if res.Regression && res.CapWarning {
 			status = "❌ REGRESSION & ⚠️ CAP WARNING"
@@ -108,7 +121,7 @@ func FormatDiffs(results []DiffResult) string {
 		} else if res.CapWarning {
 			status = "⚠️ CAP WARNING"
 		}
-		
+
 		markdown += fmt.Sprintf("| %s | %s | %d | %d | %d | %.2f%% | %.2f%% | %s |\n",
 			res.FunctionName, res.Metric, res.BaselineValue, res.NewValue, res.Delta, res.DeltaPct, res.AbsoluteCapPct, status)
 	}

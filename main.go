@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strconv"
 )
 
 func main() {
@@ -61,27 +60,29 @@ func main() {
 				os.Exit(1)
 			}
 
-			readBytes, writeBytes, cpuInsns, memBytes, err := ParseTransactionData(simResp.Result.TransactionData)
+			res, err := ParseTransactionData(simResp.Result.TransactionData)
 			if err != nil {
 				fmt.Printf("Failed to parse transaction data for %s: %v\n", f.Name, err)
 				os.Exit(1)
 			}
-			
-			// Fallback to cost object if script didn't extract them
-			if cpuInsns == 0 {
-				cpuInsns, _ = strconv.ParseInt(simResp.Result.Cost.CPUInstructions, 10, 64)
-			}
-			if memBytes == 0 {
-				memBytes, _ = strconv.ParseInt(simResp.Result.Cost.MemoryBytes, 10, 64)
+
+			// Memory is only available from the legacy cost field; record it as unknown otherwise.
+			var memBytes *int64
+			if simResp.Result.Cost != nil {
+				memBytes, err = parseOptionalInt(simResp.Result.Cost.MemoryBytes)
+				if err != nil {
+					fmt.Printf("Invalid memBytes for %s: %v\n", f.Name, err)
+					os.Exit(1)
+				}
 			}
 
 			funcs = append(funcs, FunctionCost{
 				Name:            f.Name,
 				FixtureID:       f.FixtureID,
-				CPUInstructions: cpuInsns,
+				CPUInstructions: res.CPUInstructions,
 				MemoryBytes:     memBytes,
-				ReadBytes:       readBytes,
-				WriteBytes:      writeBytes,
+				ReadBytes:       res.ReadBytes,
+				WriteBytes:      res.WriteBytes,
 			})
 		}
 

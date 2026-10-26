@@ -10,8 +10,11 @@
 ## Deep Technical Details
 
 ### XDR Parsing
-The Go CLI interacts with the Soroban network by encoding and decoding Stellar XDR (External Data Representation). It utilizes the stellar/go SDK to strictly parse Base64 encoded transaction envelopes and simulation results.
-When fetching simulation data via RPC, the `result.transactionData` and `result.events` are received as base64-encoded XDR strings. The parser converts these into native Go structs representing `TransactionMeta`, extracting precise metrics for CPU Instructions and Memory usage injected by the Soroban environment. 
+The CLI decodes the base64 `result.transactionData` returned by `simulateTransaction` into a `SorobanTransactionData` struct using the `xdr` package of the Stellar Go SDK (`github.com/stellar/go-stellar-sdk`). CPU instructions, disk read bytes and write bytes come from its `resources` field. These are the resource values the RPC recommends declaring for the transaction, so they are suitable for comparing runs against each other.
+
+Memory is not part of `SorobanTransactionData`. It was only exposed through the legacy `result.cost.memBytes` field, which current RPC versions omit. When it is absent, `memory_bytes` is recorded as `null` and is never treated as a regression.
+
+A simulation that fails (the RPC returns `result.error`) or returns no `transactionData` makes the CLI exit non-zero instead of producing zero values.
 
 ### Threshold Calculations
 Threshold calculations form the core of the Regression Engine. The engine takes two maps: `baseline` and `current`.
