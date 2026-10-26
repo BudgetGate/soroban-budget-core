@@ -21,8 +21,8 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
-// run executes the CLI and returns its exit code. Messages still go to stdout, apart from the
-// schema-version error, until output streams are reworked (C9).
+// run executes the CLI and returns its exit code. stdout carries only the Markdown report, so
+// callers can use it as-is; progress and error messages go to stderr.
 func run(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("budget-core", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -40,11 +40,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 
 	if *baselinePath == "" {
-		fmt.Fprintln(stdout, "Usage: soroban-budget-core --baseline <file> [--new <file> | --fixture <file>]")
+		fmt.Fprintln(stderr, "Usage: soroban-budget-core --baseline <file> [--new <file> | --fixture <file>]")
 		return exitError
 	}
 
-	baseline, code := readSnapshot("baseline", *baselinePath, stdout, stderr)
+	baseline, code := readSnapshot("baseline", *baselinePath, stderr)
 	if code != exitOK {
 		return code
 	}
@@ -52,18 +52,18 @@ func run(args []string, stdout, stderr io.Writer) int {
 	var newSnapshot *Snapshot
 
 	if *fixturePath != "" {
-		fmt.Fprintf(stdout, "Simulating transactions from fixture via %s...\n", *rpcURL)
+		fmt.Fprintf(stderr, "Simulating transactions from fixture via %s...\n", *rpcURL)
 
 		fixtureFile, err := os.Open(*fixturePath)
 		if err != nil {
-			fmt.Fprintf(stdout, "Error opening fixture: %v\n", err)
+			fmt.Fprintf(stderr, "Error opening fixture: %v\n", err)
 			return exitError
 		}
 		defer fixtureFile.Close()
 
 		var fixtures []FixtureEntry
 		if err := json.NewDecoder(fixtureFile).Decode(&fixtures); err != nil {
-			fmt.Fprintf(stdout, "Error decoding fixture JSON: %v\n", err)
+			fmt.Fprintf(stderr, "Error decoding fixture JSON: %v\n", err)
 			return exitError
 		}
 
@@ -71,7 +71,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		for _, f := range fixtures {
 			res, simResp, err := MeasureResources(context.Background(), *rpcURL, f.XDR)
 			if err != nil {
-				fmt.Fprintf(stdout, "Failed to measure resources for %s: %v\n", f.Name, err)
+				fmt.Fprintf(stderr, "Failed to measure resources for %s: %v\n", f.Name, err)
 				return exitError
 			}
 
@@ -80,7 +80,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 			if simResp.Result.Cost != nil {
 				memBytes, err = parseOptionalInt(simResp.Result.Cost.MemoryBytes)
 				if err != nil {
-					fmt.Fprintf(stdout, "Invalid memBytes for %s: %v\n", f.Name, err)
+					fmt.Fprintf(stderr, "Invalid memBytes for %s: %v\n", f.Name, err)
 					return exitError
 				}
 			}
@@ -104,12 +104,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 			Functions:     funcs,
 		}
 	} else if *newPath != "" {
-		newSnapshot, code = readSnapshot("new snapshot", *newPath, stdout, stderr)
+		newSnapshot, code = readSnapshot("new snapshot", *newPath, stderr)
 		if code != exitOK {
 			return code
 		}
 	} else {
-		fmt.Fprintln(stdout, "Must provide either --new or --fixture.")
+		fmt.Fprintln(stderr, "Must provide either --new or --fixture.")
 		return exitError
 	}
 
@@ -117,7 +117,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	results := CompareSnapshots(baseline, newSnapshot, thresholds)
 
 	markdown := FormatDiffs(results)
-	fmt.Fprintln(stdout, markdown)
+	fmt.Fprint(stdout, markdown)
 
 	if *outputJson != "" {
 		data, err := json.MarshalIndent(newSnapshot, "", "  ")
@@ -134,23 +134,19 @@ func run(args []string, stdout, stderr io.Writer) int {
 	return exitOK
 }
 
-// readSnapshot opens and parses a snapshot file. On failure it prints the error and returns
-// exitError; an unsupported schema version is reported on stderr.
-func readSnapshot(label, path string, stdout, stderr io.Writer) (*Snapshot, int) {
+// readSnapshot opens and parses a snapshot file. On failure it prints the error to stderr and
+// returns exitError.
+func readSnapshot(label, path string, stderr io.Writer) (*Snapshot, int) {
 	f, err := os.Open(path)
 	if err != nil {
-		fmt.Fprintf(stdout, "Error opening %s: %v\n", label, err)
+		fmt.Fprintf(stderr, "Error opening %s: %v\n", label, err)
 		return nil, exitError
 	}
 	defer f.Close()
 
 	s, err := ParseSnapshot(f)
 	if err != nil {
-		if errors.Is(err, ErrUnsupportedSchema) {
-			fmt.Fprintf(stderr, "Error reading %s %s: %v\n", label, path, err)
-		} else {
-			fmt.Fprintf(stdout, "Error parsing %s: %v\n", label, err)
-		}
+		fmt.Fprintf(stderr, "Error reading %s %s: %v\n", label, path, err)
 		return nil, exitError
 	}
 	return s, exitOK

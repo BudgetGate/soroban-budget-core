@@ -66,6 +66,8 @@ A row turns `❌ REGRESSION` when a metric rises more than `--max-delta-pct`, an
 | `1` | At least one metric regressed. |
 | `2` | The run could not compare: bad or missing flags, unreadable or invalid files, an unsupported `schema_version`, or an RPC failure. |
 
+stdout carries only the Markdown report, so it can be redirected or posted as-is. Usage, progress and error messages go to stderr; on an error, stdout is empty.
+
 ## 📄 JSON Schema
 
 The tool expects snapshots to follow a specific JSON schema. See the [`SCHEMA.md`](./SCHEMA.md) file for the exact data structure required.
