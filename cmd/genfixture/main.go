@@ -17,6 +17,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,6 +37,8 @@ const (
 	friendbotURL = "https://friendbot.stellar.org"
 	// Native asset (XLM) contract on testnet.
 	nativeContract = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
+	// httpTimeout bounds each RPC and friendbot round trip.
+	httpTimeout = 30 * time.Second
 )
 
 type fixture struct {
@@ -52,11 +55,13 @@ func main() {
 }
 
 func run() error {
+	ctx := context.Background()
+
 	kp, err := keypair.Random()
 	if err != nil {
 		return err
 	}
-	if err := fund(kp.Address()); err != nil {
+	if err := fund(ctx, kp.Address()); err != nil {
 		return err
 	}
 
@@ -102,7 +107,7 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		auth, err := recordAuth(draft)
+		auth, err := recordAuth(ctx, draft)
 		if err != nil {
 			return fmt.Errorf("%s: %w", c.name, err)
 		}
@@ -142,7 +147,7 @@ func buildEnvelope(kp *keypair.Full, hostFn xdr.HostFunction, auth []xdr.Soroban
 }
 
 // recordAuth simulates in "record" mode and returns the authorization entries the call needs.
-func recordAuth(envelope string) ([]xdr.SorobanAuthorizationEntry, error) {
+func recordAuth(ctx context.Context, envelope string) ([]xdr.SorobanAuthorizationEntry, error) {
 	body, err := json.Marshal(map[string]interface{}{
 		"jsonrpc": "2.0",
 		"id":      1,
@@ -152,7 +157,12 @@ func recordAuth(envelope string) ([]xdr.SorobanAuthorizationEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := http.Post(rpcURL, "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rpcURL, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := (&http.Client{Timeout: httpTimeout}).Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -193,8 +203,12 @@ func recordAuth(envelope string) ([]xdr.SorobanAuthorizationEntry, error) {
 }
 
 // fund creates the account on testnet and waits until the RPC can see it.
-func fund(address string) error {
-	resp, err := http.Get(friendbotURL + "/?addr=" + address)
+func fund(ctx context.Context, address string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, friendbotURL+"/?addr="+address, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := (&http.Client{Timeout: httpTimeout}).Do(req)
 	if err != nil {
 		return err
 	}
