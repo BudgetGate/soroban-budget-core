@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/stellar/go-stellar-sdk/xdr"
@@ -91,6 +92,11 @@ func simulateTransaction(ctx context.Context, rpcURL string, txXDR string, leewa
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
+	// A proxy or rate limiter can answer with an HTML page; report the status, not a JSON error.
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("rpc returned HTTP %d: %s", resp.StatusCode, bodySnippet(bodyBytes))
+	}
+
 	var simResp SimulateTransactionResponse
 	if err := json.Unmarshal(bodyBytes, &simResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
@@ -105,6 +111,19 @@ func simulateTransaction(ctx context.Context, rpcURL string, txXDR string, leewa
 	}
 
 	return &simResp, nil
+}
+
+// bodySnippet returns the start of a response body on one line, for error messages.
+func bodySnippet(b []byte) string {
+	const maxRunes = 200
+	s := strings.Join(strings.Fields(string(b)), " ")
+	if s == "" {
+		return "(empty body)"
+	}
+	if r := []rune(s); len(r) > maxRunes {
+		return string(r[:maxRunes]) + "…"
+	}
+	return s
 }
 
 // Resources holds the resource figures declared in a simulation's SorobanTransactionData.

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -88,11 +89,24 @@ func TestSimulateTransaction(t *testing.T) {
 			wantErr: "rpc returned error: -32602 invalid parameters",
 		},
 		{
-			// The status code is not checked; an empty body fails at decoding.
-			name:    "HTTP 500",
+			name:    "HTTP 500 with empty body",
 			status:  http.StatusInternalServerError,
 			body:    func(t *testing.T) []byte { return nil },
-			wantErr: "decode response",
+			wantErr: "rpc returned HTTP 500: (empty body)",
+		},
+		{
+			// What a proxy or rate limiter in front of the RPC typically sends.
+			name:    "HTTP 403 HTML page",
+			status:  http.StatusForbidden,
+			body:    func(t *testing.T) []byte { return []byte("<html>\n  <body>Access denied</body>\n</html>") },
+			wantErr: "rpc returned HTTP 403: <html> <body>Access denied</body> </html>",
+		},
+		{
+			// A valid-looking result must not be trusted when the status says the request failed.
+			name:    "HTTP 502 with result body",
+			status:  http.StatusBadGateway,
+			body:    func(t *testing.T) []byte { return capturedResponse(t, "balance_check") },
+			wantErr: "rpc returned HTTP 502",
 		},
 	}
 
@@ -254,6 +268,27 @@ func TestParseOptionalInt(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, v)
+		})
+	}
+}
+
+func TestBodySnippet(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "empty", body: "", want: "(empty body)"},
+		{name: "whitespace only", body: " \n\t ", want: "(empty body)"},
+		{name: "collapses whitespace", body: "<html>\n  <body>Denied</body>\n</html>\n", want: "<html> <body>Denied</body> </html>"},
+		{name: "exactly 200", body: strings.Repeat("a", 200), want: strings.Repeat("a", 200)},
+		{name: "truncated at 200", body: strings.Repeat("a", 250), want: strings.Repeat("a", 200) + "…"},
+		{name: "truncates by rune", body: strings.Repeat("é", 250), want: strings.Repeat("é", 200) + "…"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, bodySnippet([]byte(tt.body)))
 		})
 	}
 }
