@@ -15,7 +15,8 @@ Last updated: 2026-10-26 (after #9)
 - C4 done: exit codes 0 pass, 1 regression, 2 error; `run()` is unit-tested per exit path. The Action's A8 is unblocked.
 - C9 done: stdout carries only the Markdown report; usage, progress and errors go to stderr.
 - C13 done: a `--output-json` file that cannot be written fails the run (exit 2, error on stderr); the report is still printed.
-- Next up: C16 (HTTP status), then C3/C5.
+- C16 done: a non-200 RPC reply fails with `rpc returned HTTP <code>: <body snippet>` instead of a JSON decode error.
+- Next up: C3 and C5 (threshold flags, network caps). C5 needs the current protocol limits read from the network or official docs first (rule 4).
 - Rule learned the hard way: do not stack PRs on feature branches. Base every PR on `main`.
 
 ## Phase 1 — Real measurement
@@ -42,7 +43,7 @@ Last updated: 2026-10-26 (after #9)
 - [ ] C5: read network caps from the network, record the protocol version, decide whether a cap breach fails the run, populate `pct_of_network_cap`
 - [x] C9: report on stdout only; progress and errors on stderr
 - [x] C13: fail with a clear error when `--output-json` cannot be written
-- [ ] C16: check the RPC's HTTP status and report it
+- [x] C16: check the RPC's HTTP status and report it
 
 ## Phase 4 — Correct reports and a clean repo
 
