@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -47,18 +48,18 @@ func TestRunExitCodes(t *testing.T) {
 		{name: "no change", args: []string{"--baseline", base, "--new", same}, want: exitOK, wantStdout: "| f | CPUInstructions | 1000 | 1000 |"},
 		{name: "regression", args: []string{"--baseline", base, "--new", regressed}, want: exitRegression, wantStdout: "❌ REGRESSION"},
 		{name: "threshold above the rise", args: []string{"--baseline", base, "--new", regressed, "--max-delta-pct", "150"}, want: exitOK},
-		{name: "no arguments", args: nil, want: exitError, wantStdout: "Usage:"},
+		{name: "no arguments", args: nil, want: exitError, wantStderr: "Usage:"},
 		{name: "undefined flag", args: []string{"--bogus"}, want: exitError, wantStderr: "flag provided but not defined"},
-		{name: "missing baseline file", args: []string{"--baseline", missing, "--new", same}, want: exitError, wantStdout: "Error opening baseline"},
-		{name: "invalid baseline JSON", args: []string{"--baseline", badJSON, "--new", same}, want: exitError, wantStdout: "Error parsing baseline"},
+		{name: "missing baseline file", args: []string{"--baseline", missing, "--new", same}, want: exitError, wantStderr: "Error opening baseline"},
+		{name: "invalid baseline JSON", args: []string{"--baseline", badJSON, "--new", same}, want: exitError, wantStderr: "Error reading baseline"},
 		{name: "unsupported baseline version", args: []string{"--baseline", badVersion, "--new", same}, want: exitError, wantStderr: "unsupported snapshot schema_version"},
-		{name: "neither --new nor --fixture", args: []string{"--baseline", base}, want: exitError, wantStdout: "Must provide either --new or --fixture."},
-		{name: "missing new snapshot", args: []string{"--baseline", base, "--new", missing}, want: exitError, wantStdout: "Error opening new snapshot"},
+		{name: "neither --new nor --fixture", args: []string{"--baseline", base}, want: exitError, wantStderr: "Must provide either --new or --fixture."},
+		{name: "missing new snapshot", args: []string{"--baseline", base, "--new", missing}, want: exitError, wantStderr: "Error opening new snapshot"},
 		{name: "unsupported new version", args: []string{"--baseline", base, "--new", badVersion}, want: exitError, wantStderr: "Error reading new snapshot"},
-		{name: "missing fixture", args: []string{"--baseline", base, "--fixture", missing, "--rpc-url", rpcOK.URL}, want: exitError, wantStdout: "Error opening fixture"},
-		{name: "invalid fixture JSON", args: []string{"--baseline", base, "--fixture", badJSON, "--rpc-url", rpcOK.URL}, want: exitError, wantStdout: "Error decoding fixture JSON"},
-		{name: "RPC failure", args: []string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpcDown.URL}, want: exitError, wantStdout: "Failed to measure resources for f"},
-		{name: "fixture regresses", args: []string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpcOK.URL}, want: exitRegression, wantStdout: "| f | CPUInstructions | 1000 | 91406 |"},
+		{name: "missing fixture", args: []string{"--baseline", base, "--fixture", missing, "--rpc-url", rpcOK.URL}, want: exitError, wantStderr: "Error opening fixture"},
+		{name: "invalid fixture JSON", args: []string{"--baseline", base, "--fixture", badJSON, "--rpc-url", rpcOK.URL}, want: exitError, wantStderr: "Error decoding fixture JSON"},
+		{name: "RPC failure", args: []string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpcDown.URL}, want: exitError, wantStderr: "Failed to measure resources for f"},
+		{name: "fixture regresses", args: []string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpcOK.URL}, want: exitRegression, wantStdout: "| f | CPUInstructions | 1000 | 91406 |", wantStderr: "Simulating transactions from fixture"},
 	}
 
 	for _, tt := range tests {
@@ -68,6 +69,14 @@ func TestRunExitCodes(t *testing.T) {
 			assert.Equal(t, tt.want, got, "stdout: %s\nstderr: %s", stdout.String(), stderr.String())
 			assert.Contains(t, stdout.String(), tt.wantStdout)
 			assert.Contains(t, stderr.String(), tt.wantStderr)
+
+			// stdout carries the report and nothing else, so callers can use it as-is.
+			switch {
+			case tt.want == exitError || tt.name == "help":
+				assert.Empty(t, stdout.String())
+			default:
+				assert.True(t, strings.HasPrefix(stdout.String(), "| Function | Metric |"), "stdout: %q", stdout.String())
+			}
 		})
 	}
 }
