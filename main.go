@@ -119,10 +119,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 	markdown := FormatDiffs(results)
 	fmt.Fprint(stdout, markdown)
 
+	// A snapshot that was asked for but not written fails the run, even after a regression: a
+	// caller that saves it as the next baseline must not continue with a missing or stale file.
+	// The report above still shows any regression.
 	if *outputJson != "" {
-		data, err := json.MarshalIndent(newSnapshot, "", "  ")
-		if err == nil {
-			_ = os.WriteFile(*outputJson, data, 0644)
+		if err := writeSnapshot(*outputJson, newSnapshot); err != nil {
+			fmt.Fprintf(stderr, "Error writing --output-json %s: %v\n", *outputJson, err)
+			return exitError
 		}
 	}
 
@@ -132,6 +135,18 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	return exitOK
+}
+
+// writeSnapshot writes s as indented JSON.
+func writeSnapshot(path string, s *Snapshot) error {
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode snapshot: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write file: %w", err)
+	}
+	return nil
 }
 
 // readSnapshot opens and parses a snapshot file. On failure it prints the error to stderr and
