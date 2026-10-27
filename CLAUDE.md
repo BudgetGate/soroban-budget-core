@@ -31,6 +31,7 @@ State of `main` on 2026-10-27 (`c060e90`, after #4–#23). Module `github.com/bu
 | `SCHEMA.md` | Snapshot format (v2.0, with a version history and the reading rules) and fixture format (`[{name, fixture_id, xdr}]`). Authoritative. |
 | `testdata/` | `fixture.json` (`balance_check` read-only, `transfer_to_contract` writes storage; testnet native-asset contract), `simulate_*.json` (captured responses), `getledgerentries_config.json` and `getnetwork.json` (captured cap and protocol responses, protocol 29), `snapshot_testnet.json` (real snapshot, schema 2.0, with `pct_of_network_cap`). Provenance and regeneration in `testdata/README.md`. |
 | `.github/workflows/ci.yml` | `Core CI`, job `build-and-test`: `go build`, `go test`. Go version from `go.mod`. Runs on push/PR to `main` only. |
+| `.github/workflows/release.yml` | `Release`. On a `v*` tag: `gofmt` check, `go vet`, `go test`, then a static `CGO_ENABLED=0 GOOS=linux GOARCH=amd64` build with `-trimpath -ldflags "-s -w"` to `budget-core-linux-amd64`, a `--help` smoke test (a comparison would need testnet for caps), `SHA256SUMS`, and `gh release create --verify-tag --generate-notes` with both files (`contents: write` only in the publish job). On a PR to `main` that changes the workflow, the build job runs and the publish job is skipped. Uses `checkout@v7`, `setup-go@v7`, `upload-artifact@v7`, `download-artifact@v7` (all `node24`). |
 | `README.md`, `CONTRIBUTING.md` | Building, running, flags, exit codes; contribution rules. User-facing explanations live on the docs site, which the README links to. `.gitignore` ignores `/budget-core`, the local build output. |
 
 ## 3. Known defects
@@ -39,7 +40,8 @@ Checked 2026-10-27 against `origin/main` (`c060e90`). "Open PR" means a fix exis
 
 | ID | Defect | Evidence | Open PR |
 |----|--------|----------|---------|
-| C12 | No GitHub release. Only tag `v0.1.0`. The Action downloads `budget-core-linux-amd64` from a release that does not exist. | GitHub API | — |
+| C12 | No GitHub release. Only tag `v0.1.0`. The Action downloads `budget-core-linux-amd64` from a release that does not exist. The release workflow exists (`release.yml`); a release is cut by pushing a tag, only when the maintainer asks. | GitHub API | — |
+| C17 | `ci.yml` pins `actions/checkout@v4` and `actions/setup-go@v5`, both `node20`; runners force them onto Node 24 with a warning. Same fix as action A19 and dashboard D12: move to `@v7`. | `ci.yml`; annotation on run 40475506294 (2026-10-27) | — |
 
 Resolved and removed: the old `--fixture` mock (removed before #4 in `a79bcd9`), Node-based XDR decoding and the always-0 memory (#4), the README/go.mod Go version mismatch (#4), padded CPU instructions (C2b, #5), `read_bytes` blind to contract storage (C2c, #6: footprint entry counts), no HTTP timeout (C8, #8), test data in Go constants and placeholder sample snapshots (C11: real captures and a real snapshot under `testdata/`, table-driven tests), CRLF checkouts on Windows breaking `gofmt -l .` (C15: `.gitattributes`), errors exiting 1 like a regression (C4: every error now exits 2), messages mixed into the report on stdout (C9: stdout is the report only), `--output-json` failures ignored (C13: now exit 2 with the error on stderr), RPC HTTP status not checked (C16: non-200 now fails with the status and a body snippet), added and removed functions skipped silently (C5b: `🆕 NEW` rows with values and cap usage, one `🗑️ REMOVED` row; neither fails the run), one threshold flag only (C3: `--cap-warning-pct` and per-metric absolute-increase flags; a single absolute number across metrics was rejected because CPU and entry counts differ by five orders of magnitude), unversioned schema (C10: snapshots are written as `2.0`; `1.0` and `2.0` are read; anything else exits 2), out-of-date repo docs (C14: `DOCUMENTATION.md` removed in favour of the docs site; README claims checked against the code; `CONTRIBUTING.md` rewritten for Go 1.25 and this repo's rules), a broken committed binary, a stale `PR_BODY.md` and an unexplained `website/` template with a fabricated demo result (C6: all removed, `/budget-core` ignored), placeholder snapshot metadata (C5c: `network` from the RPC's passphrase, `generated_at` in UTC, `commit_sha` from `--commit-sha`), hardcoded unsourced caps (C5: read live from the network on every run; the old 100M / 10 MB / 1 MB values were 4×–50× off testnet's protocol-29 limits; `--fail-on-cap-warning` opt-in; `pct_of_network_cap` populated). #5–#7 reached `main` through #9; #8 merged into `feat/drop-memory-from-report` before #9 merged and reached `main` with it.
 
@@ -47,8 +49,9 @@ Measurement verified on 2026-10-26 against a deployed counter contract v1 → v2
 
 ## 4. Work order for this repo
 
-1. C12: tag a release with a built binary only when asked.
-2. Commit the v1/v2 counter contract under `testdata/` so the measurement check can be rerun from this repo (it lives in the private workspace repo today).
+1. C12: the release workflow is in place; push a `v*` tag only when the maintainer asks (proposed `v0.2.0`, after rerunning the counter-contract check).
+2. C17: CI action pins to `@v7`.
+3. Commit the v1/v2 counter contract under `testdata/` so the measurement check can be rerun from this repo (it lives in the private workspace repo today).
 
 `roadmap.md` tracks progress against this list.
 

@@ -25,6 +25,7 @@ Last updated: 2026-10-27 (`main` `51d7a48`, after #24)
 - C6 done: the broken `budget-core` binary, `PR_BODY.md` and `website/` are gone; `/budget-core` is ignored.
 - C14 done: `DOCUMENTATION.md` removed (the docs site covers it), README claims checked against the code and linked to the docs site, `CONTRIBUTING.md` rewritten.
 - Every defect in `CLAUDE.md` section 3 except C12 is fixed. Left: C12 (release, only when the maintainer asks) and committing the counter contract under `testdata/`.
+- Release workflow added (`.github/workflows/release.yml`): a `v*` tag runs gofmt/vet/test, builds a static `budget-core-linux-amd64`, smoke-tests it with `--help`, writes `SHA256SUMS` and creates the GitHub release. No tag pushed yet. Found on the way: C17, `ci.yml` still on `node20` actions.
 - Rule learned the hard way: do not stack PRs on feature branches. Base every PR on `main`.
 
 ## Phase 1 — Real measurement
@@ -63,7 +64,9 @@ Last updated: 2026-10-27 (`main` `51d7a48`, after #24)
 
 ## Phase 5 — Release (only when the maintainer asks)
 
-- [ ] C12: GitHub release with `budget-core-linux-amd64` (the name the Action downloads)
+- [x] C12 (part 1): release workflow that builds `budget-core-linux-amd64` and `SHA256SUMS` on a `v*` tag and publishes them
+- [ ] C12 (part 2): push the first tag (proposed `v0.2.0`) when the maintainer asks
+- [ ] C17: `ci.yml` action pins to `@v7` (`node24`)
 
 ## Maintainer actions (Claude must not do these)
 
