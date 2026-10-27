@@ -28,6 +28,7 @@ Last updated: 2026-10-27 (`main` `51d7a48`, after #24)
 - Release workflow added (`.github/workflows/release.yml`): a `v*` tag runs gofmt/vet/test, builds a static `budget-core-linux-amd64`, smoke-tests it with `--help`, writes `SHA256SUMS` and creates the GitHub release. No tag pushed yet. Found on the way: C17, `ci.yml` still on `node20` actions.
 - C17 done: `ci.yml` uses `actions/checkout@v7` and `actions/setup-go@v7` (`node24`), so Core CI no longer warns about Node 20.
 - Counter contract moved to `testdata/counter/`: sources, Rust workspace, the two testnet fixtures, and v1/v2 snapshots re-measured on 2026-10-27 with core from `main` (CPU 291,573 → 449,005, write bytes 80 → 380, entries 3/1 → 6/4, exit 1; unchanged). `TestCounterContractSnapshots` compares them offline. The contract still builds from there with `stellar contract build`. Left in this repo: only the first release (C12).
+- C12 done: `v0.2.0` tagged on `61a7a09` (after the counter-contract check passed on that commit) and published by `release.yml` (run 40520602613, build and publish both green). Downloaded `budget-core-linux-amd64` passes `sha256sum -c SHA256SUMS` (`59559e4f…`), is a static x86-64 ELF, and gives the same counter-contract numbers and exit codes. The Action's `binary-version: 0.2.0` path downloaded and ran it in a local run (not yet in a real workflow). No open defects left in this repo.
 - Rule learned the hard way: do not stack PRs on feature branches. Base every PR on `main`.
 
 ## Phase 1 — Real measurement
@@ -67,7 +68,7 @@ Last updated: 2026-10-27 (`main` `51d7a48`, after #24)
 ## Phase 5 — Release (only when the maintainer asks)
 
 - [x] C12 (part 1): release workflow that builds `budget-core-linux-amd64` and `SHA256SUMS` on a `v*` tag and publishes them
-- [ ] C12 (part 2): push the first tag (proposed `v0.2.0`) when the maintainer asks
+- [x] C12 (part 2): push the first tag: `v0.2.0` on 2026-10-27, as the maintainer asked
 - [x] C17: `ci.yml` action pins to `@v7` (`node24`)
 
 ## Maintainer actions (Claude must not do these)
