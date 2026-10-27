@@ -12,7 +12,7 @@ Last updated: 2026-10-27 (`main` `51d7a48`, after #24)
 - C10 done: snapshots are written as schema `2.0`; `1.0` and `2.0` are read; a missing or unknown version exits 2 with an error on stderr.
 - C11 done: test data lives in `testdata/` (captured testnet responses, the fixture, a real snapshot); tests are table-driven; the README example prints a full report.
 - C15 done: `.gitattributes` keeps text files LF, so `gofmt -l .` works on Windows.
-- Phase 2 is done except committing the counter contract.
+- Phase 2 is done (the counter contract moved to `testdata/counter/` later, see below).
 - C4 done: exit codes 0 pass, 1 regression, 2 error; `run()` is unit-tested per exit path. The Action's A8 is unblocked.
 - C9 done: stdout carries only the Markdown report; usage, progress and errors go to stderr.
 - C13 done: a `--output-json` file that cannot be written fails the run (exit 2, error on stderr); the report is still printed.
@@ -27,6 +27,7 @@ Last updated: 2026-10-27 (`main` `51d7a48`, after #24)
 - Every defect in `CLAUDE.md` section 3 except C12 is fixed. Left: C12 (release, only when the maintainer asks) and committing the counter contract under `testdata/`.
 - Release workflow added (`.github/workflows/release.yml`): a `v*` tag runs gofmt/vet/test, builds a static `budget-core-linux-amd64`, smoke-tests it with `--help`, writes `SHA256SUMS` and creates the GitHub release. No tag pushed yet. Found on the way: C17, `ci.yml` still on `node20` actions.
 - C17 done: `ci.yml` uses `actions/checkout@v7` and `actions/setup-go@v7` (`node24`), so Core CI no longer warns about Node 20.
+- Counter contract moved to `testdata/counter/`: sources, Rust workspace, the two testnet fixtures, and v1/v2 snapshots re-measured on 2026-10-27 with core from `main` (CPU 291,573 → 449,005, write bytes 80 → 380, entries 3/1 → 6/4, exit 1; unchanged). `TestCounterContractSnapshots` compares them offline. The contract still builds from there with `stellar contract build`. Left in this repo: only the first release (C12).
 - Rule learned the hard way: do not stack PRs on feature branches. Base every PR on `main`.
 
 ## Phase 1 — Real measurement
@@ -44,7 +45,7 @@ Last updated: 2026-10-27 (`main` `51d7a48`, after #24)
 - [x] C10: bump `schema_version` to `2.0`, document it in `SCHEMA.md`, reject snapshots with a missing or unknown version (exit 2)
 - [x] C11: move captured RPC responses to `testdata/`, table-driven tests, move sample snapshots and fixtures out of the repo root, make the README example produce a non-empty report
 - [x] C15: `.gitattributes` so Go files stay LF on Windows checkouts
-- [ ] Commit the v1/v2 counter contract used for verification under `testdata/` so the check can be rerun (it lives in the private workspace repo today)
+- [x] Commit the v1/v2 counter contract used for verification under `testdata/` so the check can be rerun (it lived in the private workspace repo)
 
 ## Phase 3 — Thresholds, exit codes, output
 

@@ -95,6 +95,18 @@ func TestTestdataSamples(t *testing.T) {
 		}
 	})
 
+	t.Run("counter fixtures", func(t *testing.T) {
+		for _, name := range []string{"fixture_v1.json", "fixture_v2.json"} {
+			b, err := os.ReadFile(filepath.Join("testdata", "counter", name))
+			require.NoError(t, err)
+			var fixtures []FixtureEntry
+			require.NoError(t, json.Unmarshal(b, &fixtures), name)
+			require.Len(t, fixtures, 1, name)
+			assert.Equal(t, "bump", fixtures[0].Name, name)
+			assert.NotEmpty(t, fixtures[0].XDR, name)
+		}
+	})
+
 	t.Run("snapshot", func(t *testing.T) {
 		f, err := os.Open(filepath.Join("testdata", "snapshot_testnet.json"))
 		require.NoError(t, err)

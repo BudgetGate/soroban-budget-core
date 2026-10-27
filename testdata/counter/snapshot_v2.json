@@ -1,0 +1,19 @@
+{
+  "schema_version": "2.0",
+  "network": "testnet",
+  "generated_at": "2026-10-27T14:07:44Z",
+  "commit_sha": "",
+  "functions": [
+    {
+      "name": "bump",
+      "fixture_id": "counter_bump",
+      "cpu_instructions": 449005,
+      "memory_bytes": null,
+      "read_bytes": 0,
+      "write_bytes": 380,
+      "read_entries": 6,
+      "write_entries": 4,
+      "pct_of_network_cap": 2
+    }
+  ]
+}
