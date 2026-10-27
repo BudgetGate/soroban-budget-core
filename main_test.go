@@ -120,6 +120,50 @@ func TestRunExitCodes(t *testing.T) {
 	}
 }
 
+// TestCounterContractSnapshots compares the snapshots core measured on testnet for the counter
+// contract (testdata/counter): v2 adds storage writes and hashing, so every cost but read bytes rises.
+func TestCounterContractSnapshots(t *testing.T) {
+	v1 := filepath.Join("testdata", "counter", "snapshot_v1.json")
+	v2 := filepath.Join("testdata", "counter", "snapshot_v2.json")
+	// Serves the captured protocol-29 caps; no simulation happens with --new.
+	rpc := paddingRPC(t, 1000, 50000)
+	defer rpc.Close()
+
+	tests := []struct {
+		name     string
+		baseline string
+		new      string
+		want     int
+		wantRows []string
+	}{
+		{
+			name: "v1 to v2 regresses", baseline: v1, new: v2, want: exitRegression,
+			wantRows: []string{
+				"| bump | CPUInstructions | 291573 | 449005 | 157432 | 53.99% | 0.11% | ❌ REGRESSION |",
+				"| bump | ReadBytes | 0 | 0 | 0 | 0.00% | 0.00% | ✅ OK |",
+				"| bump | WriteBytes | 80 | 380 | 300 | 375.00% | 0.29% | ❌ REGRESSION |",
+				"| bump | ReadEntries | 3 | 6 | 3 | 100.00% | 1.50% | ❌ REGRESSION |",
+				"| bump | WriteEntries | 1 | 4 | 3 | 300.00% | 2.00% | ❌ REGRESSION |",
+			},
+		},
+		{
+			name: "v1 against itself passes", baseline: v1, new: v1, want: exitOK,
+			wantRows: []string{"| bump | CPUInstructions | 291573 | 291573 | 0 | 0.00% | 0.07% | ✅ OK |"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			got := run([]string{"--baseline", tt.baseline, "--new", tt.new, "--rpc-url", rpc.URL}, &stdout, &stderr)
+			assert.Equal(t, tt.want, got, "stdout: %s\nstderr: %s", stdout.String(), stderr.String())
+			for _, row := range tt.wantRows {
+				assert.Contains(t, stdout.String(), row)
+			}
+		})
+	}
+}
+
 func TestRunOutputJSON(t *testing.T) {
 	dir := t.TempDir()
 	base := filepath.Join(dir, "base.json")

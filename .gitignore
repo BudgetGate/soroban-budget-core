@@ -36,3 +36,6 @@ node_modules/
 
 # Local build output (go build -o budget-core .); release binaries are attached to GitHub releases, not committed
 /budget-core
+
+# Rust build output of the counter contract in testdata/counter
+/testdata/counter/target/
