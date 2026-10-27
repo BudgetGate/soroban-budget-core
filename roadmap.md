@@ -2,11 +2,12 @@
 
 Progress tracker for this repo. The defect IDs (C2b, C3, …) and their evidence are in `CLAUDE.md` section 3; the order comes from `CLAUDE.md` section 4. Tick a box only when the change is merged to `main`, not when a PR is open.
 
-Last updated: 2026-10-26 (after #9)
+Last updated: 2026-10-27 (`main` `51d7a48`, after #24)
 
 ## Where I left off
 
-- Phase 1 is done. `main` (`72f09f9`) has #4–#10: native XDR decoding, actual CPU via two-leeway simulation, footprint entry counts, memory out of the comparison, HTTP timeout with context. Verified against the deployed counter contract (numbers in `CLAUDE.md` section 3).
+- Current: `main` is `51d7a48` (#4–#24). Left: C12 (release, only when asked) and committing the counter contract under `testdata/`. Rechecked 2026-10-27 on another machine: gofmt/vet/tests pass, live caps match `stellar network settings` (protocol 29), and the counter contract v1 → v2 rerun gave the same numbers as 2026-10-26.
+- Phase 1 is done. `main` (`72f09f9` at the time) had #4–#10: native XDR decoding, actual CPU via two-leeway simulation, footprint entry counts, memory out of the comparison, HTTP timeout with context. Verified against the deployed counter contract (numbers in `CLAUDE.md` section 3).
 - The docs site (budgetgate.github.io/docs/) now describes this `main`, including its known limitations. Changing user-facing behaviour needs a matching `BudgetGate/docs` PR.
 - C10 done: snapshots are written as schema `2.0`; `1.0` and `2.0` are read; a missing or unknown version exits 2 with an error on stderr.
 - C11 done: test data lives in `testdata/` (captured testnet responses, the fixture, a real snapshot); tests are table-driven; the README example prints a full report.
