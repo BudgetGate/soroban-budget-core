@@ -25,6 +25,17 @@ Line endings are fixed to LF by `.gitattributes`, so `gofmt -l .` works on Windo
 - **Snapshot schema:** `SCHEMA.md` is the contract with the Action and the dashboard. Changing a field's name, type or meaning bumps `schema_version` and needs a note on the impact in the PR.
 - **Never commit a binary.** `/budget-core` is ignored.
 
+## Releases (maintainers)
+
+Pushing a version tag publishes a release:
+
+```bash
+git tag v0.2.0 <commit on main>
+git push origin v0.2.0
+```
+
+`.github/workflows/release.yml` then checks formatting, vets and tests the tagged commit, builds a static `budget-core-linux-amd64` (the asset the GitHub Action downloads from `releases/download/v<version>/`), and publishes it with a `SHA256SUMS` file and generated release notes. Before tagging, rerun the counter-contract check on testnet for the commit being released. A pull request that changes the workflow runs the same build without publishing.
+
 ## Submitting a PR
 
 - Base your branch on `main`.
