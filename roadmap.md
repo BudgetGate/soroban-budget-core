@@ -2,11 +2,12 @@
 
 Progress tracker for this repo. The defect IDs (C2b, C3, …) and their evidence are in `CLAUDE.md` section 3; the order comes from `CLAUDE.md` section 4. Tick a box only when the change is merged to `main`, not when a PR is open.
 
-Last updated: 2026-10-27 (`main` `51d7a48`, after #24)
+Last updated: 2026-10-28 (`main` `3c154ae`, after #29)
 
 ## Where I left off
 
-- Current: `main` is `51d7a48` (#4–#24). Left: C12 (release, only when asked) and committing the counter contract under `testdata/`. Rechecked 2026-10-27 on another machine: gofmt/vet/tests pass, live caps match `stellar network settings` (protocol 29), and the counter contract v1 → v2 rerun gave the same numbers as 2026-10-26.
+- Current: `main` is `3c154ae` (#4–#29), v0.2.0 released. No open defects. C18 (no `SECURITY.md`; the other repos' copy named a nonexistent domain) is fixed by adding a policy that points to GitHub private vulnerability reporting; the maintainer has to enable that in the repo settings.
+- Earlier: `main` was `51d7a48` (#4–#24) with C12 and the counter contract left. Rechecked 2026-10-27 on another machine: gofmt/vet/tests pass, live caps match `stellar network settings` (protocol 29), and the counter contract v1 → v2 rerun gave the same numbers as 2026-10-26.
 - Phase 1 is done. `main` (`72f09f9` at the time) had #4–#10: native XDR decoding, actual CPU via two-leeway simulation, footprint entry counts, memory out of the comparison, HTTP timeout with context. Verified against the deployed counter contract (numbers in `CLAUDE.md` section 3).
 - The docs site (budgetgate.github.io/docs/) now describes this `main`, including its known limitations. Changing user-facing behaviour needs a matching `BudgetGate/docs` PR.
 - C10 done: snapshots are written as schema `2.0`; `1.0` and `2.0` are read; a missing or unknown version exits 2 with an error on stderr.
@@ -78,4 +79,5 @@ Last updated: 2026-10-27 (`main` `51d7a48`, after #24)
 - [ ] Delete stale branches (checked 2026-10-26):
   - Fully in `main`: `feat/drop-memory-from-report`, `fix/http-client-timeout`, `docs/claude-md-and-roadmap`, `feature/complete-missing-specs`.
   - One GitHub merge commit ahead of `main`, but both its parents are in `main`, so no unique content: `fix/native-xdr-decoding`, `fix/exact-cpu-instructions`, `feat/storage-fixtures-footprint`.
-  - Has one unmerged commit (`3fedc4f`): `feature/ui-ux-docs-overhaul` adds `SECURITY.md` (the missing core copy; same text as action/dashboard), `pr_body_core.md`, and a 7.6 MB compiled binary `soroban-budget-core`. Do not merge it. Salvage `SECURITY.md` in its own PR if wanted, then delete the branch.
+  - Has one unmerged commit (`3fedc4f`): `feature/ui-ux-docs-overhaul` adds `SECURITY.md` (the missing core copy; same text as action/dashboard), `pr_body_core.md`, and a 7.6 MB compiled binary `soroban-budget-core`. Do not merge it. Its `SECURITY.md` named a nonexistent domain, so C18 wrote a new one instead; the branch has nothing left worth keeping and can be deleted.
+- [ ] Enable private vulnerability reporting (Settings → Security). `SECURITY.md` points to it; off on 2026-10-28.
