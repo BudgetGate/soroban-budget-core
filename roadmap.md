@@ -80,4 +80,4 @@ Last updated: 2026-10-28 (`main` `3c154ae`, after #29)
   - Fully in `main`: `feat/drop-memory-from-report`, `fix/http-client-timeout`, `docs/claude-md-and-roadmap`, `feature/complete-missing-specs`.
   - One GitHub merge commit ahead of `main`, but both its parents are in `main`, so no unique content: `fix/native-xdr-decoding`, `fix/exact-cpu-instructions`, `feat/storage-fixtures-footprint`.
   - Has one unmerged commit (`3fedc4f`): `feature/ui-ux-docs-overhaul` adds `SECURITY.md` (the missing core copy; same text as action/dashboard), `pr_body_core.md`, and a 7.6 MB compiled binary `soroban-budget-core`. Do not merge it. Its `SECURITY.md` named a nonexistent domain, so C18 wrote a new one instead; the branch has nothing left worth keeping and can be deleted.
-- [ ] Enable private vulnerability reporting (Settings → Security). `SECURITY.md` points to it; off on 2026-10-28.
+- [x] Enable private vulnerability reporting (Settings → Security). `SECURITY.md` points to it; enabled by the maintainer 2026-10-28 (API: `enabled: true`).
