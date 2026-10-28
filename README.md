@@ -135,3 +135,6 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) before opening a pull request.
 ## 🤝 Integration
 
 This core binary is designed to be used independently or wrapped by our GitHub Action (`soroban-budget-action`) for seamless CI/CD integration.
+## 🔒 Security
+
+Report vulnerabilities privately; see [`SECURITY.md`](./SECURITY.md).
