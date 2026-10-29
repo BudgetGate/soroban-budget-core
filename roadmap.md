@@ -74,8 +74,8 @@ Last updated: 2026-10-28 (`main` `3c154ae`, after #29)
 
 ## Maintainer actions (Claude must not do these)
 
-- [ ] Branch protection on `main`: currently 0 required reviews and no required status checks. Consider requiring `Core CI / build-and-test`.
-- [ ] Repo topics and description (none set).
+- [x] Branch protection on `main` (set by the maintainer 2026-10-29, read back through the API): the `build-and-test` check is required, branches need not be up to date, 0 reviews (single maintainer), no force-push or deletion.
+- [x] Repo topics and description (set by the maintainer 2026-10-29, read back through the API): `soroban`, `stellar`, `smart-contracts`, `resource-usage`, `ci`, `cli`, `go`; the description says early-stage and unaudited.
 - [x] Delete stale branches (checked 2026-10-26; all deleted by 2026-10-28, the last one, `feature/ui-ux-docs-overhaul`, by the maintainer; `main` is the only branch):
   - Fully in `main`: `feat/drop-memory-from-report`, `fix/http-client-timeout`, `docs/claude-md-and-roadmap`, `feature/complete-missing-specs`.
   - One GitHub merge commit ahead of `main`, but both its parents are in `main`, so no unique content: `fix/native-xdr-decoding`, `fix/exact-cpu-instructions`, `feat/storage-fixtures-footprint`.
