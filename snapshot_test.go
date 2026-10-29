@@ -117,3 +117,32 @@ func TestTestdataSamples(t *testing.T) {
 		assert.NotEmpty(t, s.Functions)
 	})
 }
+
+func TestDuplicateNames(t *testing.T) {
+	tests := []struct {
+		name  string
+		names []string
+		want  []string
+	}{
+		{name: "none", names: []string{"a", "b"}, want: nil},
+		{name: "empty", names: nil, want: nil},
+		{name: "one repeated", names: []string{"a", "b", "a"}, want: []string{"a"}},
+		{name: "listed once however often repeated", names: []string{"a", "a", "a"}, want: []string{"a"}},
+		{name: "in the order the repeats appear", names: []string{"b", "a", "a", "b"}, want: []string{"a", "b"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			funcs := make([]FunctionCost, len(tt.names))
+			for i, n := range tt.names {
+				funcs[i] = FunctionCost{Name: n}
+			}
+			assert.Equal(t, tt.want, duplicateNames(funcs, functionName))
+		})
+	}
+}
+
+func TestWithoutNames(t *testing.T) {
+	funcs := []FunctionCost{{Name: "a"}, {Name: "b"}, {Name: "a"}, {Name: "c"}}
+	assert.Equal(t, []FunctionCost{{Name: "b"}, {Name: "c"}}, withoutNames(funcs, []string{"a"}))
+	assert.Equal(t, `"a", "b"`, quotedList([]string{"a", "b"}))
+}

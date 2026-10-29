@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
+	"strconv"
+	"strings"
 )
 
 // CurrentSchemaVersion is the snapshot schema version core writes. See SCHEMA.md.
@@ -49,6 +52,43 @@ func ParseSnapshot(r io.Reader) (*Snapshot, error) {
 		return nil, err
 	}
 	return &s, nil
+}
+
+// duplicateNames returns each name that occurs more than once in items, once, in the order the
+// repeats appear. Snapshots are compared by function name, so a repeated name is ambiguous.
+func duplicateNames[T any](items []T, name func(T) string) []string {
+	seen := make(map[string]int)
+	var dups []string
+	for _, item := range items {
+		n := name(item)
+		seen[n]++
+		if seen[n] == 2 {
+			dups = append(dups, n)
+		}
+	}
+	return dups
+}
+
+func functionName(fn FunctionCost) string { return fn.Name }
+
+// withoutNames returns funcs minus every function whose name is in names.
+func withoutNames(funcs []FunctionCost, names []string) []FunctionCost {
+	var kept []FunctionCost
+	for _, fn := range funcs {
+		if !slices.Contains(names, fn.Name) {
+			kept = append(kept, fn)
+		}
+	}
+	return kept
+}
+
+// quotedList formats names as "a", "b" for messages.
+func quotedList(names []string) string {
+	quoted := make([]string, len(names))
+	for i, n := range names {
+		quoted[i] = strconv.Quote(n)
+	}
+	return strings.Join(quoted, ", ")
 }
 
 // checkSchemaVersion accepts the versions core can compare. 1.0 snapshots differ from 2.0 only

@@ -80,6 +80,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if code != exitOK {
 		return code
 	}
+	// A baseline written before names had to be unique may repeat one. Comparing against either
+	// entry would be a guess, so those functions get no baseline and show as new; the next
+	// baseline saved from this run no longer has the duplicate.
+	if dups := duplicateNames(baseline.Functions, functionName); len(dups) > 0 {
+		fmt.Fprintf(stderr, "Warning: the baseline has more than one function named %s; comparing them as new functions.\n", quotedList(dups))
+		baseline.Functions = withoutNames(baseline.Functions, dups)
+	}
 
 	// Caps are read live so they match the network and its current protocol version; there is no
 	// built-in fallback. A fixture run needs the network anyway. A --new run skips the lookup when
@@ -111,6 +118,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		var fixtures []FixtureEntry
 		if err := json.NewDecoder(fixtureFile).Decode(&fixtures); err != nil {
 			fmt.Fprintf(stderr, "Error decoding fixture JSON: %v\n", err)
+			return exitError
+		}
+		if dups := duplicateNames(fixtures, func(f FixtureEntry) string { return f.Name }); len(dups) > 0 {
+			fmt.Fprintf(stderr, "Fixture has more than one entry named %s; each name must be unique, since the baseline is matched by name.\n", quotedList(dups))
 			return exitError
 		}
 
@@ -158,6 +169,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		newSnapshot, code = readSnapshot("new snapshot", *newPath, stderr)
 		if code != exitOK {
 			return code
+		}
+		if dups := duplicateNames(newSnapshot.Functions, functionName); len(dups) > 0 {
+			fmt.Fprintf(stderr, "New snapshot has more than one function named %s; each name must be unique, since the baseline is matched by name.\n", quotedList(dups))
+			return exitError
 		}
 	}
 
