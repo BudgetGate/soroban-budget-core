@@ -6,6 +6,7 @@ Last updated: 2026-10-29
 
 ## Where I left off
 
+- `v0.2.1` released 2026-10-29 from `f1e878c` (run 40851244102). Checked on the published asset: `sha256sum -c SHA256SUMS` OK, `go version -m` go1.26.10 / v0.2.1, `govulncheck -mode=binary` no vulnerabilities (v0.2.0: 14), and the counter v2 fixture against v1 on testnet gives CPU 291,573 → 449,005, exit 1. README points at v0.2.1. Next: the Action's `binary-version` examples and docs move to `0.2.1`.
 - C19 (2026-10-29): `govulncheck` (v1.9.0, built with Go 1.27.3, run with go1.25.14) found 10 reachable standard-library vulnerabilities, fixed only in Go 1.26.9/1.26.10, because `go 1.25` builds with an unsupported Go; the v0.2.0 release binary (go1.25.14) has them too. `go.mod` now says `go 1.26.10`, `klauspost/compress` is v1.18.7: govulncheck clean, gofmt/vet/tests pass, and the counter v1/v2 re-measure on testnet matches the committed snapshots (CPU 291,573 → 449,005, write bytes 80 → 380, entries 3 → 6 and 1 → 4, exit 1). Users get the fix only with a new release (`v0.2.1`, when the maintainer asks), then the Action's `binary-version` examples move to it.
 - Current: `main` is `3c154ae` (#4–#29), v0.2.0 released. No open defects. C18 (no `SECURITY.md`; the other repos' copy named a nonexistent domain) is fixed by adding a policy that points to GitHub private vulnerability reporting; the maintainer has to enable that in the repo settings.
 - Earlier: `main` was `51d7a48` (#4–#24) with C12 and the counter contract left. Rechecked 2026-10-27 on another machine: gofmt/vet/tests pass, live caps match `stellar network settings` (protocol 29), and the counter contract v1 → v2 rerun gave the same numbers as 2026-10-26.
@@ -73,7 +74,7 @@ Last updated: 2026-10-29
 - [x] C12 (part 2): push the first tag: `v0.2.0` on 2026-10-27, as the maintainer asked
 - [x] C17: `ci.yml` action pins to `@v7` (`node24`)
 - [x] C19: build on a supported Go without known vulnerabilities (`go 1.26.10`; `govulncheck` clean)
-- [ ] Release `v0.2.1` with C19, only when the maintainer asks (rerun the counter check first)
+- [x] Release `v0.2.1` with C19 (2026-10-29, as the maintainer asked): counter check rerun on `f1e878c` first (identical snapshots, v2 exit 1); annotated tag on `f1e878c`; release run 40851244102 published `budget-core-linux-amd64` and `SHA256SUMS`
 
 ## Maintainer actions (Claude must not do these)
 
