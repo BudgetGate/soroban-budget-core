@@ -1,8 +1,9 @@
 name: Release
 
-# Pushing a tag like v0.2.0 tests the tagged commit, builds budget-core-linux-amd64 (the asset the
-# GitHub Action downloads from releases/download/v<version>/) and publishes it with SHA256SUMS.
-# A pull request that changes this file runs the same build without publishing.
+# Pushing a tag like v0.2.0 tests the tagged commit, cross-compiles budget-core for each platform
+# below (the assets the GitHub Action downloads from releases/download/v<version>/), runs each
+# binary on a runner of its own platform, and publishes them with SHA256SUMS.
+# A pull request that changes this file runs the build and the platform checks without publishing.
 on:
   push:
     tags: [ "v*" ]
@@ -33,24 +34,61 @@ jobs:
     - name: Test
       run: go test ./...
 
+    # Static builds (no cgo), so one Linux runner can build every platform.
     - name: Build
-      run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/budget-core-linux-amd64 .
-
-    - name: Smoke test
-      run: dist/budget-core-linux-amd64 --help
+      run: |
+        for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+          goos="${target%/*}"; goarch="${target#*/}"
+          ext=""; [ "$goos" = windows ] && ext=".exe"
+          CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags "-s -w" -o "dist/budget-core-$goos-$goarch$ext" .
+        done
 
     - name: Checksums
       working-directory: dist
-      run: sha256sum budget-core-linux-amd64 > SHA256SUMS && cat SHA256SUMS
+      run: sha256sum budget-core-* > SHA256SUMS && cat SHA256SUMS
 
     - uses: actions/upload-artifact@v7
       with:
         name: release
         path: dist/
 
+  # Runs each binary on its own platform, after checking it against SHA256SUMS.
+  # A comparison would need testnet for the network caps, so --help is the smoke test.
+  smoke-test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - { runner: ubuntu-24.04, asset: budget-core-linux-amd64 }
+        - { runner: ubuntu-24.04-arm, asset: budget-core-linux-arm64 }
+        - { runner: macos-26-intel, asset: budget-core-darwin-amd64 }
+        - { runner: macos-latest, asset: budget-core-darwin-arm64 }
+        - { runner: windows-latest, asset: budget-core-windows-amd64.exe }
+        - { runner: windows-11-arm, asset: budget-core-windows-arm64.exe }
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - uses: actions/download-artifact@v7
+      with:
+        name: release
+        path: dist
+
+    - name: Check the checksum
+      working-directory: dist
+      run: |
+        grep " ${{ matrix.asset }}\$" SHA256SUMS > asset.sum
+        if command -v sha256sum >/dev/null; then sha256sum -c asset.sum; else shasum -a 256 -c asset.sum; fi
+
+    - name: Run it
+      working-directory: dist
+      run: chmod +x "${{ matrix.asset }}" && "./${{ matrix.asset }}" --help
+
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [ build, smoke-test ]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -65,7 +103,7 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: >
         gh release create "$GITHUB_REF_NAME"
-        dist/budget-core-linux-amd64 dist/SHA256SUMS
+        dist/budget-core-* dist/SHA256SUMS
         --repo "$GITHUB_REPOSITORY"
         --verify-tag
         --title "$GITHUB_REF_NAME"
