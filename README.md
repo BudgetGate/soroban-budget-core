@@ -45,6 +45,12 @@ Rename-Item $A budget-core.exe
 
 `--ignore-missing` is needed because `SHA256SUMS` lists all six binaries. v0.2.1 and earlier only include `budget-core-linux-amd64`.
 
+Releases after v0.2.3 also carry a signed build provenance attestation for each binary, which proves it was built by this repository's release workflow from the tagged commit. Check it with the GitHub CLI before running the binary (v0.2.3 and earlier have none, so this fails for them):
+
+```bash
+gh attestation verify budget-core -R BudgetGate/soroban-budget-core
+```
+
 ### Build from source
 
 Ensure you have [Go](https://golang.org/dl/) 1.26.10 or later installed (`go.mod` requires it; with an older Go, the `go` command downloads 1.26.10 itself unless `GOTOOLCHAIN=local`). No other runtime is needed; XDR is decoded natively with the Stellar Go SDK.
