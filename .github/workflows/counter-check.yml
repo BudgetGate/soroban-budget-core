@@ -1,0 +1,55 @@
+name: Counter check
+
+# Measures the counter contract fixtures on testnet every week and compares the results with the
+# committed snapshots, so a testnet reset or a change in measured cost shows up as a failed run
+# instead of being found by a user. Recovery: testdata/counter/redeploy.sh (see its README).
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+  pull_request:
+    branches: [ "main" ]
+    paths: [ ".github/workflows/counter-check.yml" ]
+
+permissions:
+  contents: read
+
+jobs:
+  counter-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set up Go
+      uses: actions/setup-go@v7
+      with:
+        go-version-file: go.mod
+
+    - name: Build
+      run: go build -o budget-core .
+
+    - name: Measure v1
+      run: |
+        echo '{"schema_version":"2.0","functions":[]}' > "$RUNNER_TEMP/empty.json"
+        if ! ./budget-core --baseline "$RUNNER_TEMP/empty.json" --fixture testdata/counter/fixture_v1.json --output-json "$RUNNER_TEMP/snapshot_v1.json"; then
+          echo "::error::Measuring counter v1 on testnet failed. If the error above is a simulation failure, testnet was probably reset: run testdata/counter/redeploy.sh."
+          exit 1
+        fi
+
+    - name: Measure v2 (expect a regression)
+      run: |
+        status=0
+        ./budget-core --baseline "$RUNNER_TEMP/snapshot_v1.json" --fixture testdata/counter/fixture_v2.json --output-json "$RUNNER_TEMP/snapshot_v2.json" || status=$?
+        if [ "$status" -ne 1 ]; then
+          echo "::error::Expected core to exit 1 (regression) on counter v2, got $status. A simulation failure means testnet was probably reset: run testdata/counter/redeploy.sh."
+          exit 1
+        fi
+
+    - name: Compare with the committed snapshots
+      run: |
+        for version in v1 v2; do
+          if ! diff <(jq -S .functions "testdata/counter/snapshot_$version.json") <(jq -S .functions "$RUNNER_TEMP/snapshot_$version.json"); then
+            echo "::error::Counter $version measured differently from testdata/counter/snapshot_$version.json. Find the cause (a protocol upgrade or changed network limits move pct_of_network_cap) before updating the snapshots."
+            exit 1
+          fi
+        done
