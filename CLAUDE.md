@@ -1,12 +1,12 @@
 # CLAUDE.md — soroban-budget-core
 
-Scope: this repo only. If the workspace-level `CLAUDE.md` exists in the parent folder, read it as well. Where the two differ, this file wins for this repo. The defect table below was checked against `origin/main` (`c060e90`) on 2026-10-27. Re-verify an item before relying on it.
+Scope: this repo only. If the workspace-level `CLAUDE.md` exists in the parent folder, read it as well. Where the two differ, this file wins for this repo. The defect table below was checked against `origin/main` (`6538c03`) on 2026-10-29. Re-verify an item before relying on it.
 
 ## 1. What this repo is
 
 The engine of Budget Gate. A Go CLI that takes a baseline snapshot of Soroban contract resource costs and a new snapshot, compares them, and prints a Markdown report. Its second job is to produce the new snapshot itself by calling the Soroban RPC method `simulateTransaction` (`--fixture`). That path makes real RPC calls and was verified against a deployed contract (section 3).
 
-User docs live in the separate `BudgetGate/docs` site (budgetgate.github.io/docs/), which describes this repo as of `c060e90` (each PR since #12 shipped with a matching docs PR). A PR here that changes flags, exit codes, output or the schema needs a matching docs PR, linked from both descriptions.
+User docs live in the separate `BudgetGate/docs` site (budgetgate.github.io/docs/), which describes this repo as of `6538c03` (each user-facing PR since #12 shipped with a matching docs PR; the Go version and v0.2.1 in docs #37 and #38). A PR here that changes flags, exit codes, output or the schema needs a matching docs PR, linked from both descriptions.
 
 This repo owns the snapshot schema. The Action and the dashboard both depend on it. It must work standalone, outside GitHub.
 
@@ -17,7 +17,7 @@ Boundaries:
 
 ## 2. Known layout
 
-State of `main` on 2026-10-27 (`c060e90`, after #4–#23). Module `github.com/budgetgate/soroban-budget-core`, `go 1.26.10` (C19; was `go 1.25`). Direct dependencies: `github.com/stellar/go-stellar-sdk v0.7.3` (XDR decoding in `rpc.go`, `txnbuild` in `cmd/genfixture`), `github.com/stretchr/testify v1.11.1`.
+Layout last checked in full against `main` `c060e90` (after #4–#23) on 2026-10-27; later PRs (through #35, `6538c03`, 2026-10-29) updated the rows they changed. Module `github.com/budgetgate/soroban-budget-core`, `go 1.26.10` (C19; was `go 1.25`). Direct dependencies: `github.com/stellar/go-stellar-sdk v0.7.3` (XDR decoding in `rpc.go`, `txnbuild` in `cmd/genfixture`), `github.com/stretchr/testify v1.11.1`.
 
 | File | Role (read in full unless stated) |
 |------|------|
@@ -36,7 +36,7 @@ State of `main` on 2026-10-27 (`c060e90`, after #4–#23). Module `github.com/bu
 
 ## 3. Known defects
 
-Checked 2026-10-27 against `origin/main` (`c060e90`). "Open PR" means a fix exists but is not merged to `main`.
+Checked 2026-10-29 against `origin/main` (`6538c03`): no open defects; `govulncheck ./...` clean. "Open PR" means a fix exists but is not merged to `main`.
 
 | ID | Defect | Evidence | Open PR |
 |----|--------|----------|---------|
@@ -63,7 +63,7 @@ go test ./... -v
 ./budget-core --baseline testdata/snapshot_testnet.json --new testdata/snapshot_testnet.json
 ./budget-core --baseline testdata/snapshot_testnet.json --fixture testdata/fixture.json   # live: calls soroban-testnet
 ```
-Run on 2026-10-27 after C5c: `gofmt -l .` prints nothing, `go vet` clean, `go test` passes (20 functions, 111 cases; `TestRunExitCodes` covers each exit path and checks stdout is empty on errors and starts with the table otherwise); both `budget-core` runs print 10 rows at 0.00% and exit 0. `.gitattributes` keeps text files LF on every OS, so `gofmt -l .` works on Windows too. A clone made before it existed keeps CRLF files until they are checked out again (delete them and `git checkout -- <files>`). `go build -o budget-core .` writes an ignored file; never commit a binary. On a Go older than 1.26.10, the default `GOTOOLCHAIN=auto` downloads go1.26.10; Go 1.22 could not resolve the old `go 1.25` line (no toolchain is named `go1.25`). Check dependencies with `govulncheck ./...` (golang.org/x/vuln v1.9.0 needs Go 1.26 or later to build).
+Run on 2026-10-29 on `6538c03` with go1.26.10: `gofmt -l .` prints nothing, `go vet` clean, `go test -v` passes (21 test functions, 135 passing tests and subtests; `TestRunExitCodes` covers each exit path and checks stdout is empty on errors and starts with the table otherwise); both `budget-core` runs print 10 rows at 0.00% and exit 0. `.gitattributes` keeps text files LF on every OS, so `gofmt -l .` works on Windows too. A clone made before it existed keeps CRLF files until they are checked out again (delete them and `git checkout -- <files>`). `go build -o budget-core .` writes an ignored file; never commit a binary. On a Go older than 1.26.10, the default `GOTOOLCHAIN=auto` downloads go1.26.10; Go 1.22 could not resolve the old `go 1.25` line (no toolchain is named `go1.25`). Check dependencies with `govulncheck ./...` (golang.org/x/vuln v1.9.0 needs Go 1.26 or later to build).
 
 First run against a fresh contract, with no baseline yet:
 ```
