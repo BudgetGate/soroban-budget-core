@@ -6,7 +6,7 @@
 
 **Documentation:** [budgetgate.github.io/docs](https://budgetgate.github.io/docs/core/). This README covers building and running core; the docs site explains how the numbers are measured.
 
-> **Status:** early-stage. Not audited and not production-ready. Latest release: [v0.2.2](https://github.com/BudgetGate/soroban-budget-core/releases/tag/v0.2.2) (Linux, macOS and Windows; x86-64 and arm64).
+> **Status:** early-stage. Not audited and not production-ready. Latest release: [v0.2.3](https://github.com/BudgetGate/soroban-budget-core/releases/tag/v0.2.3) (Linux, macOS and Windows; x86-64 and arm64).
 
 ## 🚀 Features
 
@@ -25,7 +25,7 @@ Each release has static binaries for Linux, macOS and Windows on x86-64 and arm6
 Linux and macOS (pick your `ASSET`):
 
 ```bash
-V=v0.2.2; ASSET=budget-core-linux-amd64
+V=v0.2.3; ASSET=budget-core-linux-amd64
 curl -sSLO https://github.com/BudgetGate/soroban-budget-core/releases/download/$V/$ASSET
 curl -sSLO https://github.com/BudgetGate/soroban-budget-core/releases/download/$V/SHA256SUMS
 sha256sum -c --ignore-missing SHA256SUMS      # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
@@ -35,7 +35,7 @@ chmod +x $ASSET && mv $ASSET budget-core
 Windows (PowerShell; the comparison must print `True`):
 
 ```powershell
-$V = 'v0.2.2'; $A = 'budget-core-windows-amd64.exe'
+$V = 'v0.2.3'; $A = 'budget-core-windows-amd64.exe'
 $R = "https://github.com/BudgetGate/soroban-budget-core/releases/download/$V"
 Invoke-WebRequest "$R/$A" -OutFile $A; Invoke-WebRequest "$R/SHA256SUMS" -OutFile SHA256SUMS
 $expected = ((Select-String -Path SHA256SUMS -Pattern " $A$").Line -split '\s+')[0]
