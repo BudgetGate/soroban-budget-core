@@ -45,7 +45,7 @@ go build -o budget-core .
    ./budget-core --baseline empty.json --fixture fixture.json --output-json baseline.json
    ```
 2. Provide a [fixture](./SCHEMA.md#fixture-schema-input) of contract calls to simulate with `--fixture`, or an existing snapshot with `--new`.
-3. Provide the testnet or mainnet RPC URL via `--rpc-url`.
+3. Provide a Soroban RPC URL via `--rpc-url` (default `https://soroban-testnet.stellar.org`). Only testnet has been run; other networks should work through any Soroban RPC that serves `simulateTransaction`, `getLedgerEntries` and `getNetwork`, but are untested.
 4. (Optional) With `--output-json`, pass `--commit-sha` to record which commit of your contract was measured. The snapshot also records the network (read from the RPC) and when it was generated.
 5. (Optional) Tune the thresholds. Each one is off when set to `0`; negative values are rejected.
 
