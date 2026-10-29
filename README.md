@@ -69,7 +69,7 @@ go build -o budget-core .
    ./budget-core --baseline empty.json --fixture fixture.json --output-json baseline.json
    ```
 2. Provide a [fixture](./SCHEMA.md#fixture-schema-input) of contract calls to simulate with `--fixture`, or an existing snapshot with `--new`.
-3. Provide a Soroban RPC URL via `--rpc-url` (default `https://soroban-testnet.stellar.org`). Only testnet has been run; other networks should work through any Soroban RPC that serves `simulateTransaction`, `getLedgerEntries` and `getNetwork`, but are untested.
+3. Provide a Soroban RPC URL via `--rpc-url` (default `https://soroban-testnet.stellar.org`). Any Soroban RPC that serves `simulateTransaction`, `getLedgerEntries` and `getNetwork` works. Contract changes have been measured on testnet. On mainnet (2026-10-30, v0.2.3), a read-only call (the native XLM contract's `balance`) measured the same on three public RPC providers (`https://mainnet.sorobanrpc.com`, `https://soroban-rpc.mainnet.stellar.gateway.fm`, `https://rpc.ankr.com/stellar_soroban`): 91,406 CPU instructions, network caps read at protocol 29, `network` recorded as `mainnet`. Simulating is free and changes nothing, but the source account in each fixture entry must exist on that network.
 4. (Optional) With `--output-json`, pass `--commit-sha` to record which commit of your contract was measured. The snapshot also records the network (read from the RPC) and when it was generated.
 5. (Optional) Tune the thresholds. Each one is off when set to `0`; negative values are rejected.
 
