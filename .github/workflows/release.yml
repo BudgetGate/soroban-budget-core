@@ -2,7 +2,8 @@ name: Release
 
 # Pushing a tag like v0.2.0 tests the tagged commit, cross-compiles budget-core for each platform
 # below (the assets the GitHub Action downloads from releases/download/v<version>/), runs each
-# binary on a runner of its own platform, and publishes them with SHA256SUMS.
+# binary on a runner of its own platform, and publishes them with SHA256SUMS and a build
+# provenance attestation for each binary.
 # A pull request that changes this file runs the build and the platform checks without publishing.
 on:
   push:
@@ -17,6 +18,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     steps:
     - uses: actions/checkout@v7
 
@@ -46,6 +51,15 @@ jobs:
     - name: Checksums
       working-directory: dist
       run: sha256sum budget-core-* > SHA256SUMS && cat SHA256SUMS
+
+    # Signed build provenance for each binary (the repository, commit and workflow run that built
+    # it), checked with `gh attestation verify <file> -R BudgetGate/soroban-budget-core`. Pull
+    # requests from forks get no OIDC token, so they skip it.
+    - name: Attest build provenance
+      if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+      uses: actions/attest-build-provenance@v4
+      with:
+        subject-path: dist/budget-core-*
 
     - uses: actions/upload-artifact@v7
       with:
