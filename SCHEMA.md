@@ -33,6 +33,7 @@ This schema represents the JSON contract output by `soroban-budget-core`. It is 
 Snapshots written before core filled these fields have `network` `"testnet"` (hardcoded), `generated_at` `""` and `commit_sha` `"dynamic"`.
 - `functions`: An array of profiling results for specific invoked functions.
 - `functions[].name`: The name a function is compared by: a function in the new snapshot is compared with the baseline function of the same name. Unique within a snapshot (see [Reading](#versions)).
+- `functions[].cpu_instructions`: The instructions the RPC's simulation used, with its declaration pad removed. Executing the same call uses slightly fewer: on testnet (protocol 29, 2026-10-29) three calls simulated at 291,573, 411,511 and 559,224 used 288,297, 409,658 and 555,007 when submitted (0.45%–1.14% less, from the executed transactions' `core_metrics` `cpu_insn`). Both sides of a comparison are simulated, so comparisons are unaffected; the value is not what a transaction declares or pays for.
 - `functions[].memory_bytes`: May be `null` when the RPC did not report memory usage (current `simulateTransaction` responses do not). Consumers must treat `null` as "unknown", not as `0`. `soroban-budget-core` does not currently compare or report this field.
 - `functions[].read_bytes`: The RPC's `diskReadBytes`. Since protocol 23 this covers only classic and archived entries; reads of live contract storage are **not** included.
 - `functions[].read_entries` / `functions[].write_entries`: Number of ledger entries in the transaction footprint (all entries / read-write entries). These are the signal for added contract-storage access. They are `null` (or absent) in snapshots written before they were introduced, and comparisons against such a baseline show them as not reported.
@@ -42,7 +43,7 @@ Snapshots written before core filled these fields have `network` `"testnet"` (ha
 
 | Version | Changes |
 |---|---|
-| `2.0` | `memory_bytes` may be `null`. Added `read_entries` and `write_entries`. `cpu_instructions` is actual usage, not the RPC's padded estimate. |
+| `2.0` | `memory_bytes` may be `null`. Added `read_entries` and `write_entries`. `cpu_instructions` is what the simulation used, not the RPC's padded estimate (an executed call uses slightly less; see `functions[].cpu_instructions`). |
 | `1.0` | First version. `memory_bytes` was always a number; no entry counts. |
 
 Core writes `2.0`. Snapshots written by core before this version was introduced say `1.0` even when they already contain `2.0` fields.

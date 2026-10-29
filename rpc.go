@@ -168,16 +168,17 @@ func ParseTransactionData(b64 string) (Resources, error) {
 	}, nil
 }
 
-// The RPC declares instructions as actual usage plus max(instructionLeeway, a provider-configured
+// The RPC declares instructions as simulated usage plus max(instructionLeeway, a provider-configured
 // minimum pad; 50,000 on soroban-testnet). Simulating with two leeways above that pad makes the
-// declared value exactly actual+leeway, so the pad can be removed without knowing its size.
+// declared value exactly usage+leeway, so the pad can be removed without knowing its size. The
+// simulation uses slightly more than an executed call (0.45%-1.14% in testnet checks; SCHEMA.md).
 const (
 	measureLeewayLow  int64 = 1_000_000
 	measureLeewayHigh int64 = 2_000_000
 )
 
-// MeasureResources simulates txXDR twice with known instruction leeways and returns the actual
-// CPU instructions used, with read/write bytes as declared by the RPC. The first simulation's
+// MeasureResources simulates txXDR twice with known instruction leeways and returns the CPU
+// instructions the simulation used, with read/write bytes as declared by the RPC. The first simulation's
 // response is also returned for callers that need other fields from it.
 func MeasureResources(ctx context.Context, rpcURL string, txXDR string) (Resources, *SimulateTransactionResponse, error) {
 	lowResp, err := simulateTransaction(ctx, rpcURL, txXDR, measureLeewayLow)
