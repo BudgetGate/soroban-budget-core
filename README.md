@@ -6,7 +6,7 @@
 
 **Documentation:** [budgetgate.github.io/docs](https://budgetgate.github.io/docs/core/). This README covers building and running core; the docs site explains how the numbers are measured.
 
-> **Status:** early-stage. Not audited and not production-ready. Latest release: [v0.2.1](https://github.com/BudgetGate/soroban-budget-core/releases/tag/v0.2.1) (Linux x86-64 binary).
+> **Status:** early-stage. Not audited and not production-ready. Latest release: [v0.2.2](https://github.com/BudgetGate/soroban-budget-core/releases/tag/v0.2.2) (Linux, macOS and Windows; x86-64 and arm64).
 
 ## 🚀 Features
 
@@ -18,16 +18,32 @@
 
 ## 📦 Installation
 
-### Download a release (Linux x86-64)
+### Download a release
+
+Each release has static binaries for Linux, macOS and Windows on x86-64 and arm64, plus one `SHA256SUMS` file covering them: `budget-core-linux-amd64`, `budget-core-linux-arm64`, `budget-core-darwin-amd64`, `budget-core-darwin-arm64`, `budget-core-windows-amd64.exe`, `budget-core-windows-arm64.exe`.
+
+Linux and macOS (pick your `ASSET`):
 
 ```bash
-curl -sSLO https://github.com/BudgetGate/soroban-budget-core/releases/download/v0.2.1/budget-core-linux-amd64
-curl -sSLO https://github.com/BudgetGate/soroban-budget-core/releases/download/v0.2.1/SHA256SUMS
-sha256sum -c SHA256SUMS
-chmod +x budget-core-linux-amd64 && mv budget-core-linux-amd64 budget-core
+V=v0.2.2; ASSET=budget-core-linux-amd64
+curl -sSLO https://github.com/BudgetGate/soroban-budget-core/releases/download/$V/$ASSET
+curl -sSLO https://github.com/BudgetGate/soroban-budget-core/releases/download/$V/SHA256SUMS
+sha256sum -c --ignore-missing SHA256SUMS      # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
+chmod +x $ASSET && mv $ASSET budget-core
 ```
 
-Releases only include a Linux x86-64 binary. On other platforms, build from source.
+Windows (PowerShell; the comparison must print `True`):
+
+```powershell
+$V = 'v0.2.2'; $A = 'budget-core-windows-amd64.exe'
+$R = "https://github.com/BudgetGate/soroban-budget-core/releases/download/$V"
+Invoke-WebRequest "$R/$A" -OutFile $A; Invoke-WebRequest "$R/SHA256SUMS" -OutFile SHA256SUMS
+$expected = ((Select-String -Path SHA256SUMS -Pattern " $A$").Line -split '\s+')[0]
+(Get-FileHash $A -Algorithm SHA256).Hash.ToLower() -eq $expected
+Rename-Item $A budget-core.exe
+```
+
+`--ignore-missing` is needed because `SHA256SUMS` lists all six binaries. v0.2.1 and earlier only include `budget-core-linux-amd64`.
 
 ### Build from source
 
