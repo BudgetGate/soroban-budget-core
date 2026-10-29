@@ -32,6 +32,7 @@ This schema represents the JSON contract output by `soroban-budget-core`. It is 
 
 Snapshots written before core filled these fields have `network` `"testnet"` (hardcoded), `generated_at` `""` and `commit_sha` `"dynamic"`.
 - `functions`: An array of profiling results for specific invoked functions.
+- `functions[].name`: The name a function is compared by: a function in the new snapshot is compared with the baseline function of the same name. Unique within a snapshot (see [Reading](#versions)).
 - `functions[].memory_bytes`: May be `null` when the RPC did not report memory usage (current `simulateTransaction` responses do not). Consumers must treat `null` as "unknown", not as `0`. `soroban-budget-core` does not currently compare or report this field.
 - `functions[].read_bytes`: The RPC's `diskReadBytes`. Since protocol 23 this covers only classic and archived entries; reads of live contract storage are **not** included.
 - `functions[].read_entries` / `functions[].write_entries`: Number of ledger entries in the transaction footprint (all entries / read-write entries). These are the signal for added contract-storage access. They are `null` (or absent) in snapshots written before they were introduced, and comparisons against such a baseline show them as not reported.
@@ -46,7 +47,7 @@ Snapshots written before core filled these fields have `network` `"testnet"` (ha
 
 Core writes `2.0`. Snapshots written by core before this version was introduced say `1.0` even when they already contain `2.0` fields.
 
-**Reading.** `soroban-budget-core` reads `1.0` and `2.0` snapshots, as a baseline or with `--new`. A `1.0` snapshot compares cleanly: memory is not compared, and missing entry counts are reported as unavailable. A snapshot with a missing or any other `schema_version` is rejected with an error on stderr and exit code `2`.
+**Reading.** `soroban-budget-core` reads `1.0` and `2.0` snapshots, as a baseline or with `--new`. A `1.0` snapshot compares cleanly: memory is not compared, and missing entry counts are reported as unavailable. A snapshot with a missing or any other `schema_version` is rejected with an error on stderr and exit code `2`. A new snapshot (`--new`) that has two functions with the same `name` is rejected the same way. A baseline that has one (core did not check names before; a fixture that called one function twice under its name wrote such a baseline) is read with a warning on stderr, and the functions with that name are compared as new, since either entry would be a guess; the next snapshot saved as the baseline no longer has the duplicate.
 
 **Consumers** (the Action, the dashboard, other tools) must check `schema_version` before using a snapshot and fail with a clear message on a version they do not support. Do not guess at an unknown version's fields.
 
@@ -67,6 +68,6 @@ The fixture JSON file contains an array of inputs for simulation:
 ```
 
 ### Fields
-- `name`: The logical name of the function or test.
+- `name`: The logical name of the function or test, written to the snapshot as `functions[].name`. Must be unique within the fixture, since the baseline is matched by it; a fixture with a repeated `name` is rejected with exit code `2` before anything is simulated. To measure one function with different arguments, give each call its own name.
 - `fixture_id`: A unique identifier for this fixture item.
 - `xdr`: The base64-encoded XDR of the transaction envelope.
