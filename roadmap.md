@@ -2,10 +2,11 @@
 
 Progress tracker for this repo. The defect IDs (C2b, C3, …) and their evidence are in `CLAUDE.md` section 3; the order comes from `CLAUDE.md` section 4. Tick a box only when the change is merged to `main`, not when a PR is open.
 
-Last updated: 2026-10-28 (`main` `3c154ae`, after #29)
+Last updated: 2026-10-29
 
 ## Where I left off
 
+- C19 (2026-10-29): `govulncheck` (v1.9.0, built with Go 1.27.3, run with go1.25.14) found 10 reachable standard-library vulnerabilities, fixed only in Go 1.26.9/1.26.10, because `go 1.25` builds with an unsupported Go; the v0.2.0 release binary (go1.25.14) has them too. `go.mod` now says `go 1.26.10`, `klauspost/compress` is v1.18.7: govulncheck clean, gofmt/vet/tests pass, and the counter v1/v2 re-measure on testnet matches the committed snapshots (CPU 291,573 → 449,005, write bytes 80 → 380, entries 3 → 6 and 1 → 4, exit 1). Users get the fix only with a new release (`v0.2.1`, when the maintainer asks), then the Action's `binary-version` examples move to it.
 - Current: `main` is `3c154ae` (#4–#29), v0.2.0 released. No open defects. C18 (no `SECURITY.md`; the other repos' copy named a nonexistent domain) is fixed by adding a policy that points to GitHub private vulnerability reporting; the maintainer has to enable that in the repo settings.
 - Earlier: `main` was `51d7a48` (#4–#24) with C12 and the counter contract left. Rechecked 2026-10-27 on another machine: gofmt/vet/tests pass, live caps match `stellar network settings` (protocol 29), and the counter contract v1 → v2 rerun gave the same numbers as 2026-10-26.
 - Phase 1 is done. `main` (`72f09f9` at the time) had #4–#10: native XDR decoding, actual CPU via two-leeway simulation, footprint entry counts, memory out of the comparison, HTTP timeout with context. Verified against the deployed counter contract (numbers in `CLAUDE.md` section 3).
@@ -71,6 +72,8 @@ Last updated: 2026-10-28 (`main` `3c154ae`, after #29)
 - [x] C12 (part 1): release workflow that builds `budget-core-linux-amd64` and `SHA256SUMS` on a `v*` tag and publishes them
 - [x] C12 (part 2): push the first tag: `v0.2.0` on 2026-10-27, as the maintainer asked
 - [x] C17: `ci.yml` action pins to `@v7` (`node24`)
+- [x] C19: build on a supported Go without known vulnerabilities (`go 1.26.10`; `govulncheck` clean)
+- [ ] Release `v0.2.1` with C19, only when the maintainer asks (rerun the counter check first)
 
 ## Maintainer actions (Claude must not do these)
 
