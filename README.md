@@ -29,7 +29,7 @@ Releases only include a Linux x86-64 binary. On other platforms, build from sour
 
 ### Build from source
 
-Ensure you have [Go](https://golang.org/dl/) 1.25 or later installed. No other runtime is needed; XDR is decoded natively with the Stellar Go SDK.
+Ensure you have [Go](https://golang.org/dl/) 1.26.10 or later installed (`go.mod` requires it; with an older Go, the `go` command downloads 1.26.10 itself unless `GOTOOLCHAIN=local`). No other runtime is needed; XDR is decoded natively with the Stellar Go SDK.
 
 ```bash
 git clone https://github.com/BudgetGate/soroban-budget-core.git

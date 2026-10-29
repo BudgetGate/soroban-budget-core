@@ -2,7 +2,7 @@
 
 ## Local setup
 
-1. Install Go 1.25 or later (`go.mod` requires it).
+1. Install Go 1.26.10 or later (`go.mod` requires it: it is the first release with fixes for every standard-library vulnerability `govulncheck` reports for core).
 2. Clone the repository and run `go mod download`.
 3. Check your environment:
    ```bash
