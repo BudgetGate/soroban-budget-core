@@ -6,6 +6,7 @@ Last updated: 2026-10-29
 
 ## Where I left off
 
+- C21 (2026-10-29, open PR): `testdata/counter/redeploy.sh` redeploys the counter contracts and rebuilds the fixtures and snapshots in one command (run for real into a scratch directory: new contracts, identical numbers); a weekly `Counter check` workflow measures the fixtures on testnet and diffs them with the committed snapshots, so a reset fails a run instead of surprising a user.
 - C20 (2026-10-29, open PR): the release workflow cross-builds six platforms (Linux, macOS, Windows; amd64 and arm64) and runs each on its own runner before publishing. Existing releases keep their single Linux binary; the next release (only when the maintainer asks) ships all six, and then the Action can download them (action A23).
 - README wording (2026-10-29, maintainer delegated the call): step 3 said "testnet or mainnet RPC URL", but only testnet has been run; it now says so and names the three RPC methods core needs. Mainnet stays untested.
 - `v0.2.1` released 2026-10-29 from `f1e878c` (run 40851244102). Checked on the published asset: `sha256sum -c SHA256SUMS` OK, `go version -m` go1.26.10 / v0.2.1, `govulncheck -mode=binary` no vulnerabilities (v0.2.0: 14), and the counter v2 fixture against v1 on testnet gives CPU 291,573 → 449,005, exit 1. README points at v0.2.1. Next: the Action's `binary-version` examples and docs move to `0.2.1`.

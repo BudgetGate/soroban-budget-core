@@ -38,24 +38,13 @@ echo '{"schema_version":"2.0","functions":[]}' > /tmp/empty.json
 ./budget-core --baseline /tmp/snapshot_v1.json --fixture testdata/counter/fixture_v2.json   # expect exit 1
 ```
 
-Testnet is reset periodically, which removes the contracts and the fixtures' source account; simulation then fails. Redeploy and rebuild the fixtures from `testdata/counter/`:
+Testnet is reset periodically, which removes the contracts and the fixtures' source account; simulation then fails. The weekly `Counter check` workflow (`.github/workflows/counter-check.yml`) measures both fixtures and compares them with the committed snapshots, so a reset shows up as a failed run. To recover, from the repository root:
 
 ```bash
-stellar keys generate budgetgate-verify --network testnet --fund   # once per machine
-
-cp contracts/counter/src/lib_v1.rs contracts/counter/src/lib.rs
-stellar contract build
-V1=$(stellar contract deploy --wasm target/wasm32v1-none/release/counter.wasm --source budgetgate-verify --network testnet)
-X1=$(stellar contract invoke --id $V1 --source budgetgate-verify --network testnet --build-only -- bump)
-echo "[{\"name\":\"bump\",\"fixture_id\":\"counter_bump\",\"xdr\":\"$X1\"}]" > fixture_v1.json
-
-cp contracts/counter/src/lib_v2.rs contracts/counter/src/lib.rs
-stellar contract build
-V2=$(stellar contract deploy --wasm target/wasm32v1-none/release/counter.wasm --source budgetgate-verify --network testnet)
-X2=$(stellar contract invoke --id $V2 --source budgetgate-verify --network testnet --build-only -- bump)
-echo "[{\"name\":\"bump\",\"fixture_id\":\"counter_bump\",\"xdr\":\"$X2\"}]" > fixture_v2.json
-
-cp contracts/counter/src/lib_v1.rs contracts/counter/src/lib.rs
+testdata/counter/redeploy.sh                 # replaces the fixtures and snapshots here
+testdata/counter/redeploy.sh /tmp/counter    # or write them elsewhere to look first
 ```
 
-Then rerun core as above, write the two snapshots back here with `--output-json`, and update the contract IDs and the result table. `target/` is ignored.
+It funds (or creates) the `budgetgate-verify` key, builds and deploys v1 and v2, writes both fixtures with `stellar contract invoke --build-only`, regenerates both snapshots with core, and checks that core exits 1 on v2. Each testnet step is tried up to three times, since the RPC sometimes times out. Afterwards, update the contract IDs above and the result table if the numbers moved, and copy `fixture_v1.json` to `budget/fixture.json` in `BudgetGate/budgetgate-action-test`. `target/` is ignored.
+
+Checked on 2026-10-29: the script deployed new contracts (v1 `CCF3UEF6LIHRLGRV6XZKHGBG5JN7MV2Z253CHYPCCGT7CM45Z5TODNMW`, v2 `CAM6NSDDIAWKIDDBRI7YNE2QAOEYMCDCIL4BQY7ZICRLWL5PIUBXVEM3`) into a scratch directory, and their snapshots matched the committed ones exactly.
