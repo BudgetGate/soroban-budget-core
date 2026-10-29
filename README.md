@@ -4,7 +4,7 @@
 
 **Documentation:** [budgetgate.github.io/docs](https://budgetgate.github.io/docs/core/). This README covers building and running core; the docs site explains how the numbers are measured.
 
-> **Status:** early-stage. Not audited and not production-ready. Latest release: [v0.2.0](https://github.com/BudgetGate/soroban-budget-core/releases/tag/v0.2.0) (Linux x86-64 binary).
+> **Status:** early-stage. Not audited and not production-ready. Latest release: [v0.2.1](https://github.com/BudgetGate/soroban-budget-core/releases/tag/v0.2.1) (Linux x86-64 binary).
 
 ## 🚀 Features
 
@@ -19,8 +19,8 @@
 ### Download a release (Linux x86-64)
 
 ```bash
-curl -sSLO https://github.com/BudgetGate/soroban-budget-core/releases/download/v0.2.0/budget-core-linux-amd64
-curl -sSLO https://github.com/BudgetGate/soroban-budget-core/releases/download/v0.2.0/SHA256SUMS
+curl -sSLO https://github.com/BudgetGate/soroban-budget-core/releases/download/v0.2.1/budget-core-linux-amd64
+curl -sSLO https://github.com/BudgetGate/soroban-budget-core/releases/download/v0.2.1/SHA256SUMS
 sha256sum -c SHA256SUMS
 chmod +x budget-core-linux-amd64 && mv budget-core-linux-amd64 budget-core
 ```
