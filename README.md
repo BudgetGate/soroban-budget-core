@@ -1,3 +1,5 @@
+<p align="center"><img src=".github/avatar.png" width="120" alt="Budget Gate logo: a resource-cost gauge behind a gate bar"></p>
+
 # Soroban Budget Guard - Core Engine
 
 `soroban-budget-core` is the Go CLI at the heart of the **BudgetGate** suite. It simulates Soroban contract calls with the RPC method `simulateTransaction`, compares the measured resource cost against a baseline snapshot, and prints a Markdown report.
