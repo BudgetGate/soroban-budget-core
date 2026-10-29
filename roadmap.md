@@ -6,6 +6,7 @@ Last updated: 2026-10-29
 
 ## Where I left off
 
+- Release provenance (2026-10-30, workspace Phase 9 item 8, open PR): `release.yml`'s `build` job attests the six binaries (`actions/attest-build-provenance@v4`). On this PR's run, `gh attestation verify` passed for the Linux x64, macOS arm64 and Windows arm64 binaries (SLSA v1, signed for `release.yml` in this repository) and failed for a tampered copy and for v0.2.3. README shows the command; the first release with attestations will be the next one.
 - Mainnet (2026-10-30, workspace Phase 9 item 7): v0.2.3 measured a read-only native XLM `balance` call on three public mainnet RPCs (sorobanrpc.com, gateway.fm, Ankr): 91,406 CPU and 2 read entries on each, caps read at protocol 29, `network: mainnet`; the two-leeway pad removal worked on every provider. Contract changes are still measured on testnet only (a mainnet deployment costs XLM). README updated.
 - All six v0.2.3 binaries (Linux, macOS, Windows; x64 and arm64) measured six test-repo calls identically (test repo `Platforms` workflow, run 40970585826).
 - Simulated vs executed CPU (2026-10-29, workspace Phase 9 item 1, open PR): three testnet calls measured by v0.2.3 and then submitted used 0.45%–1.14% fewer instructions when executed (291,573 → 288,297; 411,511 → 409,658; 559,224 → 555,007; `core_metrics` `cpu_insn`); footprints matched exactly. `SCHEMA.md` and the `rpc.go` comments no longer call the figure "actual usage". No code change.
