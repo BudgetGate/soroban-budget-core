@@ -130,7 +130,7 @@ Output of the example above on 2026-10-27 (exit code 0; the costs had not change
 % of Cap uses the network's per-transaction limits at protocol 29, ledger 5406551.
 ```
 
-A row turns `❌ REGRESSION` when a metric breaks its percentage or absolute limit, and the CLI then exits `1`. All statuses, including `🆕 NEW` and `🗑️ REMOVED` functions, are listed in the [report reference](https://budgetgate.github.io/docs/core/api-reference#report).
+A row turns `❌ REGRESSION` when a metric breaks its percentage or absolute limit, and the CLI then exits `1`. When a metric rises from a baseline of `0` there is no percentage to report, so `% Change` shows `from 0`; the row is still a regression whenever the rise exceeds `--max-delta-pct` or an absolute limit. All statuses, including `🆕 NEW` and `🗑️ REMOVED` functions, are listed in the [report reference](https://budgetgate.github.io/docs/core/api-reference#report).
 
 ### Exit codes
 

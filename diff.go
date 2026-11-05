@@ -19,7 +19,8 @@ type DiffResult struct {
 	BaselineValue  int64
 	NewValue       int64
 	Delta          int64
-	DeltaPct       float64
+	DeltaPct       float64 // percentage change; 100 as a threshold placeholder when RiseFromZero
+	RiseFromZero   bool    // the baseline was 0 and the value rose, so there is no percentage to report
 	AbsoluteCapPct float64
 	HasCap         bool // the network cap for this metric is known, so AbsoluteCapPct is meaningful
 	Regression     bool
@@ -108,10 +109,14 @@ func compareOptionalMetric(funcName, metric string, baseVal, newVal *int64, thre
 func compareMetric(funcName, metric string, baseVal, newVal int64, thresholds Thresholds) DiffResult {
 	delta := newVal - baseVal
 	var deltaPct float64
+	riseFromZero := false
 	if baseVal > 0 {
 		deltaPct = (float64(delta) / float64(baseVal)) * 100.0
 	} else if delta > 0 {
+		// A rise from zero exceeds any positive threshold. The 100 only drives that check; the
+		// report shows "from 0" instead of it.
 		deltaPct = 100.0
+		riseFromZero = true
 	}
 
 	regression := false
@@ -131,6 +136,7 @@ func compareMetric(funcName, metric string, baseVal, newVal int64, thresholds Th
 		NewValue:       newVal,
 		Delta:          delta,
 		DeltaPct:       deltaPct,
+		RiseFromZero:   riseFromZero,
 		AbsoluteCapPct: absCapPct,
 		HasCap:         hasCap,
 		Regression:     regression,
@@ -177,6 +183,15 @@ func formatCapPct(res DiffResult) string {
 	return fmt.Sprintf("%.2f%%", res.AbsoluteCapPct)
 }
 
+// formatChangePct renders the % Change column: "from 0" when the baseline was zero, since a
+// percentage of zero is undefined.
+func formatChangePct(res DiffResult) string {
+	if res.RiseFromZero {
+		return "from 0"
+	}
+	return fmt.Sprintf("%.2f%%", res.DeltaPct)
+}
+
 func FormatDiffs(results []DiffResult) string {
 	markdown := "| Function | Metric | Baseline | New | Delta | % Change | % of Cap | Status |\n"
 	markdown += "|----------|--------|----------|-----|-------|----------|----------|--------|\n"
@@ -209,8 +224,8 @@ func FormatDiffs(results []DiffResult) string {
 			status = "⚠️ CAP WARNING"
 		}
 
-		markdown += fmt.Sprintf("| %s | %s | %d | %d | %d | %.2f%% | %s | %s |\n",
-			res.FunctionName, res.Metric, res.BaselineValue, res.NewValue, res.Delta, res.DeltaPct, formatCapPct(res), status)
+		markdown += fmt.Sprintf("| %s | %s | %d | %d | %d | %s | %s | %s |\n",
+			res.FunctionName, res.Metric, res.BaselineValue, res.NewValue, res.Delta, formatChangePct(res), formatCapPct(res), status)
 	}
 
 	return markdown
