@@ -18,6 +18,11 @@ const (
 	exitError      = 2 // usage or runtime error
 )
 
+// version is the release this binary was built from. The release workflow sets it at link time
+// (-ldflags "-X main.version=<tag>"); a plain go build reports "dev". It is written once, before
+// main starts, and only read afterwards, so it is not mutable state at run time.
+var version = "dev"
+
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
@@ -36,6 +41,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	maxDeltaPct := fs.Float64("max-delta-pct", 10.0, "Maximum allowed percentage increase in resource usage (0 disables)")
 	capWarningPct := fs.Float64("cap-warning-pct", 80.0, "Warn when a metric exceeds this percentage of its network cap (0 disables)")
 	failOnCapWarning := fs.Bool("fail-on-cap-warning", false, "Exit 1 when any metric has a cap warning")
+	showVersion := fs.Bool("version", false, "Print the version and exit")
 	maxIncrease := map[string]*int64{
 		"CPUInstructions": fs.Int64("max-cpu-increase", 0, "Regression when CPU instructions rise by more than this (0 disables)"),
 		"ReadBytes":       fs.Int64("max-read-bytes-increase", 0, "Regression when read bytes rise by more than this (0 disables)"),
@@ -48,6 +54,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return exitOK
 		}
 		return exitError
+	}
+	if *showVersion {
+		fmt.Fprintf(stdout, "budget-core %s\n", version)
+		return exitOK
 	}
 
 	thresholds := Thresholds{MaxDeltaPct: *maxDeltaPct, CapWarningPct: *capWarningPct, MaxIncrease: map[string]int64{}}

@@ -170,6 +170,45 @@ func TestCounterContractSnapshots(t *testing.T) {
 	}
 }
 
+// --version works alone and offline: no baseline, no fixture, and no network (the RPC URL here
+// refuses connections, so any call would fail the run).
+func TestVersionFlag(t *testing.T) {
+	tests := []struct {
+		name    string
+		version string
+		args    []string
+		want    string
+	}{
+		{name: "default build", version: "dev", args: []string{"--version"}, want: "budget-core dev\n"},
+		{name: "release build", version: "v0.2.4", args: []string{"--version"}, want: "budget-core v0.2.4\n"},
+		{name: "single dash", version: "v0.2.4", args: []string{"-version"}, want: "budget-core v0.2.4\n"},
+		{name: "no network call", version: "v0.2.4", args: []string{"--version", "--rpc-url", "http://127.0.0.1:9"}, want: "budget-core v0.2.4\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// version is set at link time in a release; tests stand in for that by assigning it.
+			old := version
+			version = tt.version
+			t.Cleanup(func() { version = old })
+
+			var stdout, stderr bytes.Buffer
+			got := run(tt.args, &stdout, &stderr)
+			assert.Equal(t, exitOK, got)
+			assert.Equal(t, tt.want, stdout.String())
+			assert.Empty(t, stderr.String())
+		})
+	}
+
+	t.Run("does not weaken the required flags", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		got := run(nil, &stdout, &stderr)
+		assert.Equal(t, exitError, got)
+		assert.Empty(t, stdout.String())
+		assert.Contains(t, stderr.String(), "Usage:")
+	})
+}
+
 func TestRunOutputJSON(t *testing.T) {
 	dir := t.TempDir()
 	base := filepath.Join(dir, "base.json")

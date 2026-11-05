@@ -51,6 +51,8 @@ Releases after v0.2.3 also carry a signed build provenance attestation for each 
 gh attestation verify budget-core -R BudgetGate/soroban-budget-core
 ```
 
+`budget-core --version` prints the release the binary was built from, for example `budget-core v0.2.4`, and needs no other flags or network. Releases after v0.2.3 report their tag; a binary built with a plain `go build` reports `budget-core dev`. The release workflow checks that each published binary reports its own tag before it publishes.
+
 ### Build from source
 
 Ensure you have [Go](https://golang.org/dl/) 1.26.10 or later installed (`go.mod` requires it; with an older Go, the `go` command downloads 1.26.10 itself unless `GOTOOLCHAIN=local`). No other runtime is needed; XDR is decoded natively with the Stellar Go SDK.
