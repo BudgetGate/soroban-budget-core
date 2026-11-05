@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -168,6 +169,113 @@ func TestCounterContractSnapshots(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEnvOrDefault(t *testing.T) {
+	tests := []struct {
+		name string
+		env  *string
+		want string
+	}{
+		{name: "unset", env: nil, want: defaultRPCURL},
+		{name: "empty behaves as unset", env: ptr(""), want: defaultRPCURL},
+		{name: "set", env: ptr("https://rpc.example/key"), want: "https://rpc.example/key"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env != nil {
+				t.Setenv(rpcURLEnv, *tt.env)
+			} else {
+				// t.Setenv restores the original value when the test ends.
+				t.Setenv(rpcURLEnv, "")
+				require.NoError(t, os.Unsetenv(rpcURLEnv))
+			}
+			assert.Equal(t, tt.want, envOrDefault(rpcURLEnv, defaultRPCURL))
+		})
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
+// TestRPCURLEnvDefault checks the precedence flag > SOROBAN_RPC_URL > built-in default. Each fake
+// RPC counts the requests it gets, so a run that reached the wrong URL fails the test.
+func TestRPCURLEnvDefault(t *testing.T) {
+	dir := t.TempDir()
+	snapshot := filepath.Join(dir, "snap.json")
+	require.NoError(t, os.WriteFile(snapshot, []byte(`{"schema_version": "2.0", "functions": [{"name": "f", "cpu_instructions": 1000, "read_bytes": 144, "write_bytes": 0, "read_entries": 2, "write_entries": 0}]}`), 0o644))
+
+	newRPC := func(hits *atomic.Int64) *httptest.Server {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			hits.Add(1)
+			var req struct {
+				Method string `json:"method"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			switch req.Method {
+			case "getLedgerEntries":
+				w.Write(capturedFile(t, "getledgerentries_config.json"))
+			case "getNetwork":
+				w.Write(capturedFile(t, "getnetwork.json"))
+			default:
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+		}))
+		t.Cleanup(srv.Close)
+		return srv
+	}
+
+	tests := []struct {
+		name     string
+		useEnv   bool
+		useFlag  bool
+		wantEnv  bool // the env URL's server must be the one reached
+		wantFlag bool // the flag URL's server must be the one reached
+	}{
+		{name: "env only", useEnv: true, wantEnv: true},
+		{name: "flag beats env", useEnv: true, useFlag: true, wantFlag: true},
+		{name: "flag only", useFlag: true, wantFlag: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var envHits, flagHits atomic.Int64
+			envSrv, flagSrv := newRPC(&envHits), newRPC(&flagHits)
+
+			t.Setenv(rpcURLEnv, "")
+			if tt.useEnv {
+				t.Setenv(rpcURLEnv, envSrv.URL)
+			}
+			args := []string{"--baseline", snapshot, "--new", snapshot}
+			if tt.useFlag {
+				args = append(args, "--rpc-url", flagSrv.URL)
+			}
+
+			var stdout, stderr bytes.Buffer
+			got := run(args, &stdout, &stderr)
+			assert.Equal(t, exitOK, got, "stdout: %s\nstderr: %s", stdout.String(), stderr.String())
+			assert.Contains(t, stdout.String(), "% of Cap uses the network's per-transaction limits")
+			assert.Equal(t, tt.wantEnv, envHits.Load() > 0, "env server reached")
+			assert.Equal(t, tt.wantFlag, flagHits.Load() > 0, "flag server reached")
+		})
+	}
+
+	t.Run("an offline comparison makes no network call", func(t *testing.T) {
+		var hits atomic.Int64
+		srv := newRPC(&hits)
+		t.Setenv(rpcURLEnv, srv.URL)
+
+		var stdout, stderr bytes.Buffer
+		got := run([]string{"--baseline", snapshot, "--new", snapshot, "--cap-warning-pct", "0"}, &stdout, &stderr)
+		assert.Equal(t, exitOK, got, "stderr: %s", stderr.String())
+		assert.Zero(t, hits.Load())
+	})
+
+	t.Run("help does not print the value", func(t *testing.T) {
+		t.Setenv(rpcURLEnv, "https://rpc.example/SECRET-TOKEN")
+		var stdout, stderr bytes.Buffer
+		assert.Equal(t, exitOK, run([]string{"-h"}, &stdout, &stderr))
+		assert.Contains(t, stderr.String(), rpcURLEnv)
+		assert.NotContains(t, stderr.String(), "SECRET-TOKEN")
+	})
 }
 
 func TestRunOutputJSON(t *testing.T) {
