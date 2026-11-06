@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -35,6 +36,8 @@ func TestRunExitCodes(t *testing.T) {
 	// f twice, with different costs: either one would be a guess as the baseline.
 	dupSnapshot := write("dup.json", `{"schema_version": "2.0", "functions": [{"name": "f", "cpu_instructions": 1000, "read_bytes": 144, "write_bytes": 0, "read_entries": 2, "write_entries": 0}, {"name": "f", "cpu_instructions": 9000, "read_bytes": 144, "write_bytes": 0, "read_entries": 2, "write_entries": 0}]}`)
 	missing := filepath.Join(dir, "missing.json")
+	rpcArchived := archivedRPC(t)
+	defer rpcArchived.Close()
 
 	// The fake RPC reports 91,406 actual instructions, so the fixture run regresses against base.
 	rpcOK := paddingRPC(t, 91406, 50000)
@@ -88,6 +91,7 @@ func TestRunExitCodes(t *testing.T) {
 		{name: "missing fixture", args: []string{"--baseline", base, "--fixture", missing, "--rpc-url", rpcOK.URL}, want: exitError, wantStderr: "Error opening fixture"},
 		{name: "invalid fixture JSON", args: []string{"--baseline", base, "--fixture", badJSON, "--rpc-url", rpcOK.URL}, want: exitError, wantStderr: "Error decoding fixture JSON"},
 		{name: "RPC failure", args: []string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpcSimFails.URL}, want: exitError, wantStderr: "Failed to measure resources for f"},
+		{name: "archived contract state", args: []string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpcArchived.URL}, want: exitError, wantStderr: "archived ledger entries (2)"},
 		{name: "network caps unavailable, fixture", args: []string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpcDown.URL}, want: exitError, wantStderr: "Error reading network caps"},
 		{name: "network caps unavailable, --new", args: []string{"--baseline", base, "--new", same, "--rpc-url", rpcDown.URL}, want: exitError, wantStderr: "Error reading network caps"},
 		{name: "offline --new with cap warnings off", args: []string{"--baseline", base, "--new", same, "--cap-warning-pct", "0", "--rpc-url", rpcDown.URL}, want: exitOK, wantStdout: "| f | CPUInstructions | 1000 | 1000 | 0 | 0.00% | n/a | ✅ OK |"},
@@ -206,6 +210,132 @@ func TestVersionFlag(t *testing.T) {
 		assert.Equal(t, exitError, got)
 		assert.Empty(t, stdout.String())
 		assert.Contains(t, stderr.String(), "Usage:")
+	})
+}
+
+func TestEnvOrDefault(t *testing.T) {
+	tests := []struct {
+		name string
+		env  *string
+		want string
+	}{
+		{name: "unset", env: nil, want: defaultRPCURL},
+		{name: "empty behaves as unset", env: ptr(""), want: defaultRPCURL},
+		{name: "set", env: ptr("https://rpc.example/key"), want: "https://rpc.example/key"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env != nil {
+				t.Setenv(rpcURLEnv, *tt.env)
+			} else {
+				// t.Setenv restores the original value when the test ends.
+				t.Setenv(rpcURLEnv, "")
+				require.NoError(t, os.Unsetenv(rpcURLEnv))
+			}
+			assert.Equal(t, tt.want, envOrDefault(rpcURLEnv, defaultRPCURL))
+		})
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
+// TestRPCURLEnvDefault checks the precedence flag > SOROBAN_RPC_URL > built-in default. Each fake
+// RPC counts the requests it gets, so a run that reached the wrong URL fails the test.
+func TestRPCURLEnvDefault(t *testing.T) {
+	dir := t.TempDir()
+	snapshot := filepath.Join(dir, "snap.json")
+	require.NoError(t, os.WriteFile(snapshot, []byte(`{"schema_version": "2.0", "functions": [{"name": "f", "cpu_instructions": 1000, "read_bytes": 144, "write_bytes": 0, "read_entries": 2, "write_entries": 0}]}`), 0o644))
+
+	newRPC := func(hits *atomic.Int64) *httptest.Server {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			hits.Add(1)
+			var req struct {
+				Method string `json:"method"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			switch req.Method {
+			case "getLedgerEntries":
+				w.Write(capturedFile(t, "getledgerentries_config.json"))
+			case "getNetwork":
+				w.Write(capturedFile(t, "getnetwork.json"))
+			default:
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+		}))
+		t.Cleanup(srv.Close)
+		return srv
+	}
+
+	tests := []struct {
+		name     string
+		useEnv   bool
+		useFlag  bool
+		wantEnv  bool // the env URL's server must be the one reached
+		wantFlag bool // the flag URL's server must be the one reached
+	}{
+		{name: "env only", useEnv: true, wantEnv: true},
+		{name: "flag beats env", useEnv: true, useFlag: true, wantFlag: true},
+		{name: "flag only", useFlag: true, wantFlag: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var envHits, flagHits atomic.Int64
+			envSrv, flagSrv := newRPC(&envHits), newRPC(&flagHits)
+
+			t.Setenv(rpcURLEnv, "")
+			if tt.useEnv {
+				t.Setenv(rpcURLEnv, envSrv.URL)
+			}
+			args := []string{"--baseline", snapshot, "--new", snapshot}
+			if tt.useFlag {
+				args = append(args, "--rpc-url", flagSrv.URL)
+			}
+
+			var stdout, stderr bytes.Buffer
+			got := run(args, &stdout, &stderr)
+			assert.Equal(t, exitOK, got, "stdout: %s\nstderr: %s", stdout.String(), stderr.String())
+			assert.Contains(t, stdout.String(), "% of Cap uses the network's per-transaction limits")
+			assert.Equal(t, tt.wantEnv, envHits.Load() > 0, "env server reached")
+			assert.Equal(t, tt.wantFlag, flagHits.Load() > 0, "flag server reached")
+		})
+	}
+
+	t.Run("an offline comparison makes no network call", func(t *testing.T) {
+		var hits atomic.Int64
+		srv := newRPC(&hits)
+		t.Setenv(rpcURLEnv, srv.URL)
+
+		var stdout, stderr bytes.Buffer
+		got := run([]string{"--baseline", snapshot, "--new", snapshot, "--cap-warning-pct", "0"}, &stdout, &stderr)
+		assert.Equal(t, exitOK, got, "stderr: %s", stderr.String())
+		assert.Zero(t, hits.Load())
+	})
+
+	t.Run("stderr never shows the token", func(t *testing.T) {
+		var hits atomic.Int64
+		srv := newRPC(&hits)
+		down := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		downURL := down.URL
+		down.Close()
+
+		fixture := filepath.Join(dir, "fixture.json")
+		require.NoError(t, os.WriteFile(fixture, []byte(`[{"name": "f", "fixture_id": "t", "xdr": "AAAA"}]`), 0o644))
+		for _, base := range []string{srv.URL, downURL} {
+			t.Setenv(rpcURLEnv, base+"/SECRET-TOKEN?apikey=SECRET-TOKEN")
+			var stdout, stderr bytes.Buffer
+			got := run([]string{"--baseline", snapshot, "--fixture", fixture}, &stdout, &stderr)
+			assert.Equal(t, exitError, got)
+			assert.Contains(t, stderr.String(), base)
+			assert.NotContains(t, stderr.String(), "SECRET-TOKEN")
+		}
+	})
+
+	t.Run("help does not print the value", func(t *testing.T) {
+		t.Setenv(rpcURLEnv, "https://rpc.example/SECRET-TOKEN")
+		var stdout, stderr bytes.Buffer
+		assert.Equal(t, exitOK, run([]string{"-h"}, &stdout, &stderr))
+		assert.Contains(t, stderr.String(), rpcURLEnv)
+		assert.NotContains(t, stderr.String(), "SECRET-TOKEN")
 	})
 }
 

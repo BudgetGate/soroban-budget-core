@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -47,6 +49,25 @@ type SimulateTransactionResponse struct {
 // rpcTimeout bounds a single RPC round trip, including reading the response.
 const rpcTimeout = 30 * time.Second
 
+// redactURL returns only the scheme and host of an RPC URL, for messages. Providers put API keys
+// in the userinfo, path or query, and stderr often ends up in public CI logs.
+func redactURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return "[invalid URL]"
+	}
+	return u.Scheme + "://" + u.Host
+}
+
+// hideURL replaces the full URL that net/http puts in its errors with the redacted one.
+func hideURL(err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		ue.URL = redactURL(ue.URL)
+	}
+	return err
+}
+
 // postJSONRPC sends one JSON-RPC request and returns the response body. A non-200 status is an
 // error; decoding the body, including any JSON-RPC error, is left to the caller.
 func postJSONRPC(ctx context.Context, rpcURL, method string, params interface{}) ([]byte, error) {
@@ -57,14 +78,14 @@ func postJSONRPC(ctx context.Context, rpcURL, method string, params interface{})
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rpcURL, bytes.NewReader(payload))
 	if err != nil {
-		return nil, fmt.Errorf("failed to build request: %w", err)
+		return nil, fmt.Errorf("failed to build request: %w", hideURL(err))
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{Timeout: rpcTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("rpc post failed: %w", err)
+		return nil, fmt.Errorf("rpc post failed: %w", hideURL(err))
 	}
 	defer resp.Body.Close()
 
@@ -145,6 +166,9 @@ type Resources struct {
 	// DiskReadBytes, so entry counts are the only signal for added contract-storage access.
 	ReadEntries  int64 // every footprint entry (read-only and read-write)
 	WriteEntries int64 // read-write footprint entries
+	// Footprint entries the transaction would restore from the archive. Since protocol 23 a
+	// simulation restores archived entries automatically, and its figures include that work.
+	ArchivedEntries int64
 }
 
 // ParseTransactionData decodes the base64 SorobanTransactionData XDR returned by simulateTransaction.
@@ -158,6 +182,11 @@ func ParseTransactionData(b64 string) (Resources, error) {
 		return Resources{}, fmt.Errorf("failed to decode transactionData XDR: %w", err)
 	}
 
+	var archived int64
+	if ext, ok := txData.Ext.GetResourceExt(); ok {
+		archived = int64(len(ext.ArchivedSorobanEntries))
+	}
+
 	footprint := txData.Resources.Footprint
 	return Resources{
 		CPUInstructions: int64(txData.Resources.Instructions),
@@ -165,6 +194,7 @@ func ParseTransactionData(b64 string) (Resources, error) {
 		WriteBytes:      int64(txData.Resources.WriteBytes),
 		ReadEntries:     int64(len(footprint.ReadOnly) + len(footprint.ReadWrite)),
 		WriteEntries:    int64(len(footprint.ReadWrite)),
+		ArchivedEntries: archived,
 	}, nil
 }
 
@@ -188,6 +218,14 @@ func MeasureResources(ctx context.Context, rpcURL string, txXDR string) (Resourc
 	low, err := ParseTransactionData(lowResp.Result.TransactionData)
 	if err != nil {
 		return Resources{}, nil, err
+	}
+
+	// The figures would include the restore, so they are not the cost of the call. Comparing them
+	// would report a regression that the code did not cause, or hide one as a saved baseline.
+	if low.ArchivedEntries > 0 {
+		return Resources{}, nil, fmt.Errorf(
+			"cannot measure the call alone: the simulation restores archived ledger entries (%d), and its cost includes that; restore the contract and its wasm and extend their TTL (stellar contract restore, stellar contract extend), or redeploy, then measure again",
+			low.ArchivedEntries)
 	}
 
 	highResp, err := simulateTransaction(ctx, rpcURL, txXDR, measureLeewayHigh)

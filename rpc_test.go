@@ -179,6 +179,13 @@ func TestParseTransactionData(t *testing.T) {
 			input: func(t *testing.T) string { return capturedTxData(t, "transfer_to_contract") },
 			want:  Resources{CPUInstructions: 268663, ReadBytes: 144, WriteBytes: 368, ReadEntries: 3, WriteEntries: 2},
 		},
+		{
+			// Counter contract after its instance and code were archived, simulated with a
+			// leeway of 1,000,000: the figures include restoring both entries.
+			name:  "captured archived counter",
+			input: func(t *testing.T) string { return capturedTxData(t, "archived_counter") },
+			want:  Resources{CPUInstructions: 1474777, ReadBytes: 708, WriteBytes: 788, ReadEntries: 3, WriteEntries: 3, ArchivedEntries: 2},
+		},
 		{name: "empty", input: func(t *testing.T) string { return "" }, wantErr: true},
 		{name: "not XDR", input: func(t *testing.T) string { return "not-xdr" }, wantErr: true},
 	}
@@ -265,6 +272,34 @@ func TestMeasureResources(t *testing.T) {
 	}
 }
 
+// archivedRPC answers every simulation with the captured response for an archived contract, and
+// the config calls with the captured testnet responses, so a CLI run against it can read caps.
+func archivedRPC(t *testing.T) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Method string `json:"method"`
+		}
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+
+		switch req.Method {
+		case "getLedgerEntries":
+			w.Write(capturedFile(t, "getledgerentries_config.json"))
+		case "getNetwork":
+			w.Write(capturedFile(t, "getnetwork.json"))
+		default:
+			w.Write(capturedResponse(t, "archived_counter"))
+		}
+	}))
+}
+
+func TestMeasureResources_ArchivedEntries(t *testing.T) {
+	ts := archivedRPC(t)
+	defer ts.Close()
+
+	_, _, err := MeasureResources(context.Background(), ts.URL, "AAAAAAA...")
+	assert.ErrorContains(t, err, "archived ledger entries (2)")
+}
+
 func TestParseOptionalInt(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -288,6 +323,35 @@ func TestParseOptionalInt(t *testing.T) {
 			assert.Equal(t, tt.want, v)
 		})
 	}
+}
+
+// URLs can carry API keys in the userinfo, path or query; only the scheme and host are shown.
+func TestRedactURL(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"https://soroban-testnet.stellar.org", "https://soroban-testnet.stellar.org"},
+		{"https://rpc.example/SECRET-TOKEN/", "https://rpc.example"},
+		{"https://rpc.example/?apikey=SECRET-TOKEN", "https://rpc.example"},
+		{"https://user:SECRET-TOKEN@rpc.example:8443/x", "https://rpc.example:8443"},
+		{"https://rpc.example/x#SECRET-TOKEN", "https://rpc.example"},
+		{"not a url SECRET-TOKEN", "[invalid URL]"},
+		{"", "[invalid URL]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			assert.Equal(t, tt.want, redactURL(tt.in))
+		})
+	}
+}
+
+func TestPostJSONRPC_ErrorHidesURL(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	addr := ts.URL
+	ts.Close() // connections to it now fail, and the error would name the URL
+
+	_, err := postJSONRPC(context.Background(), addr+"/SECRET-TOKEN?apikey=SECRET-TOKEN", "getNetwork", nil)
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "SECRET-TOKEN")
+	assert.Contains(t, err.Error(), addr)
 }
 
 func TestBodySnippet(t *testing.T) {

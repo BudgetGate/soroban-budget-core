@@ -224,6 +224,17 @@ func TestFormatDiffs(t *testing.T) {
 			res:  DiffResult{FunctionName: "mint", Removed: true},
 			want: "| mint | — | n/a | n/a | n/a | n/a | n/a | 🗑️ REMOVED |",
 		},
+		{
+			// A percentage of zero is undefined, so the column says where the value came from.
+			name: "rise from zero",
+			res:  DiffResult{FunctionName: "mint", Metric: "WriteBytes", BaselineValue: 0, NewValue: 52, Delta: 52, DeltaPct: 100, RiseFromZero: true, HasCap: true, Regression: true},
+			want: "| mint | WriteBytes | 0 | 52 | 52 | from 0 | 0.00% | ❌ REGRESSION |",
+		},
+		{
+			name: "zero stays zero",
+			res:  DiffResult{FunctionName: "mint", Metric: "WriteBytes", BaselineValue: 0, NewValue: 0, HasCap: true},
+			want: "| mint | WriteBytes | 0 | 0 | 0 | 0.00% | 0.00% | ✅ OK |",
+		},
 	}
 
 	for _, tt := range tests {
@@ -231,6 +242,37 @@ func TestFormatDiffs(t *testing.T) {
 			markdown := FormatDiffs([]DiffResult{tt.res})
 			assert.Contains(t, markdown, "| Function | Metric | Baseline | New | Delta | % Change | % of Cap | Status |")
 			assert.Contains(t, markdown, tt.want)
+		})
+	}
+}
+
+// A rise from a zero baseline has no percentage. The report says "from 0" whatever the new value
+// is, while the regression decision is the same as before.
+func TestCompareMetric_RiseFromZero(t *testing.T) {
+	tests := []struct {
+		name           string
+		base, new      int64
+		thresholds     Thresholds
+		wantRise       bool
+		wantRegression bool
+		wantCell       string
+	}{
+		{"one byte", 0, 1, Thresholds{MaxDeltaPct: 10}, true, true, "from 0"},
+		{"hundreds of millions", 0, 350_000_000, Thresholds{MaxDeltaPct: 10}, true, true, "from 0"},
+		{"percentage check disabled", 0, 52, Thresholds{}, true, false, "from 0"},
+		{"absolute limit exceeded", 0, 52, Thresholds{MaxIncrease: map[string]int64{"WriteBytes": 10}}, true, true, "from 0"},
+		{"absolute limit respected", 0, 5, Thresholds{MaxIncrease: map[string]int64{"WriteBytes": 10}}, true, false, "from 0"},
+		{"zero stays zero", 0, 0, Thresholds{MaxDeltaPct: 10}, false, false, "0.00%"},
+		{"nonzero baseline still shows a percentage", 50, 100, Thresholds{MaxDeltaPct: 10}, false, true, "100.00%"},
+		{"decrease to zero", 50, 0, Thresholds{MaxDeltaPct: 10}, false, false, "-100.00%"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res := compareMetric("mint", "WriteBytes", tt.base, tt.new, tt.thresholds)
+			assert.Equal(t, tt.wantRise, res.RiseFromZero)
+			assert.Equal(t, tt.wantRegression, res.Regression)
+			assert.Contains(t, FormatDiffs([]DiffResult{res}), " | "+tt.wantCell+" | ")
 		})
 	}
 }

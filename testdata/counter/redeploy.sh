@@ -13,6 +13,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 out="$(mkdir -p "${1:-$here}" && cd "${1:-$here}" && pwd)"
 key=budgetgate-verify
 network=testnet
+ttl=1500000
 
 cd "$here"
 
@@ -42,6 +43,10 @@ deploy() {
   stellar contract build >&2
   local id xdr
   id="$(retry stellar contract deploy --wasm target/wasm32v1-none/release/counter.wasm --source "$key" --network "$network")"
+  # A new contract lives for testnet's minimum TTL, about 7 days. An archived contract cannot be
+  # measured, so keep this one for about 86 days.
+  retry stellar contract extend --id "$id" --ledgers-to-extend "$ttl" --source "$key" --network "$network" >&2
+  retry stellar contract extend --wasm target/wasm32v1-none/release/counter.wasm --ledgers-to-extend "$ttl" --source "$key" --network "$network" >&2
   xdr="$(retry stellar contract invoke --id "$id" --source "$key" --network "$network" --build-only -- bump)"
   printf '[{"name":"bump","fixture_id":"counter_bump","xdr":"%s"}]\n' "$xdr" > "$out/fixture_$version.json"
   echo "$version contract: $id"

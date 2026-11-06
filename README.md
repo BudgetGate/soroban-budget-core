@@ -6,7 +6,7 @@
 
 **Documentation:** [budgetgate.github.io/docs](https://budgetgate.github.io/docs/core/). This README covers building and running core; the docs site explains how the numbers are measured.
 
-> **Status:** early-stage. Not audited and not production-ready. Latest release: [v0.2.3](https://github.com/BudgetGate/soroban-budget-core/releases/tag/v0.2.3) (Linux, macOS and Windows; x86-64 and arm64).
+> **Status:** early-stage. Not audited and not production-ready. Latest release: [v0.2.4](https://github.com/BudgetGate/soroban-budget-core/releases/tag/v0.2.4) (Linux, macOS and Windows; x86-64 and arm64).
 
 ## 🚀 Features
 
@@ -25,7 +25,7 @@ Each release has static binaries for Linux, macOS and Windows on x86-64 and arm6
 Linux and macOS (pick your `ASSET`):
 
 ```bash
-V=v0.2.3; ASSET=budget-core-linux-amd64
+V=v0.2.4; ASSET=budget-core-linux-amd64
 curl -sSLO https://github.com/BudgetGate/soroban-budget-core/releases/download/$V/$ASSET
 curl -sSLO https://github.com/BudgetGate/soroban-budget-core/releases/download/$V/SHA256SUMS
 sha256sum -c --ignore-missing SHA256SUMS      # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
@@ -35,7 +35,7 @@ chmod +x $ASSET && mv $ASSET budget-core
 Windows (PowerShell; the comparison must print `True`):
 
 ```powershell
-$V = 'v0.2.3'; $A = 'budget-core-windows-amd64.exe'
+$V = 'v0.2.4'; $A = 'budget-core-windows-amd64.exe'
 $R = "https://github.com/BudgetGate/soroban-budget-core/releases/download/$V"
 Invoke-WebRequest "$R/$A" -OutFile $A; Invoke-WebRequest "$R/SHA256SUMS" -OutFile SHA256SUMS
 $expected = ((Select-String -Path SHA256SUMS -Pattern " $A$").Line -split '\s+')[0]
@@ -45,7 +45,7 @@ Rename-Item $A budget-core.exe
 
 `--ignore-missing` is needed because `SHA256SUMS` lists all six binaries. v0.2.1 and earlier only include `budget-core-linux-amd64`.
 
-Releases after v0.2.3 also carry a signed build provenance attestation for each binary, which proves it was built by this repository's release workflow from the tagged commit. Check it with the GitHub CLI before running the binary (v0.2.3 and earlier have none, so this fails for them):
+Releases from v0.2.4 also carry a signed build provenance attestation for each binary, which proves it was built by this repository's release workflow from the tagged commit. Check it with the GitHub CLI before running the binary (v0.2.3 and earlier have none, so this fails for them):
 
 ```bash
 gh attestation verify budget-core -R BudgetGate/soroban-budget-core
@@ -71,7 +71,7 @@ go build -o budget-core .
    ./budget-core --baseline empty.json --fixture fixture.json --output-json baseline.json
    ```
 2. Provide a [fixture](./SCHEMA.md#fixture-schema-input) of contract calls to simulate with `--fixture`, or an existing snapshot with `--new`.
-3. Provide a Soroban RPC URL via `--rpc-url` (default `https://soroban-testnet.stellar.org`). Any Soroban RPC that serves `simulateTransaction`, `getLedgerEntries` and `getNetwork` works. Contract changes have been measured on testnet. On mainnet (2026-10-30, v0.2.3), a read-only call (the native XLM contract's `balance`) measured the same on three public RPC providers (`https://mainnet.sorobanrpc.com`, `https://soroban-rpc.mainnet.stellar.gateway.fm`, `https://rpc.ankr.com/stellar_soroban`): 91,406 CPU instructions, network caps read at protocol 29, `network` recorded as `mainnet`. Simulating is free and changes nothing, but the source account in each fixture entry must exist on that network.
+3. Provide a Soroban RPC URL via `--rpc-url`. Without the flag, the URL comes from the `SOROBAN_RPC_URL` environment variable when it is set and not empty, and otherwise is `https://soroban-testnet.stellar.org`. Many provider URLs embed an API key; setting the variable keeps it out of shell history and `ps` output. Any Soroban RPC that serves `simulateTransaction`, `getLedgerEntries` and `getNetwork` works. Contract changes have been measured on testnet. On mainnet (2026-10-30, v0.2.3), a read-only call (the native XLM contract's `balance`) measured the same on three public RPC providers (`https://mainnet.sorobanrpc.com`, `https://soroban-rpc.mainnet.stellar.gateway.fm`, `https://rpc.ankr.com/stellar_soroban`): 91,406 CPU instructions, network caps read at protocol 29, `network` recorded as `mainnet`. Simulating is free and changes nothing, but the source account in each fixture entry must exist on that network. Messages on stderr show only the URL's scheme and host, so a key in its path, query or user part is not printed.
 4. (Optional) With `--output-json`, pass `--commit-sha` to record which commit of your contract was measured. The snapshot also records the network (read from the RPC) and when it was generated.
 5. (Optional) Tune the thresholds. Each one is off when set to `0`; negative values are rejected.
 
@@ -132,7 +132,7 @@ Output of the example above on 2026-10-27 (exit code 0; the costs had not change
 % of Cap uses the network's per-transaction limits at protocol 29, ledger 5406551.
 ```
 
-A row turns `❌ REGRESSION` when a metric breaks its percentage or absolute limit, and the CLI then exits `1`. All statuses, including `🆕 NEW` and `🗑️ REMOVED` functions, are listed in the [report reference](https://budgetgate.github.io/docs/core/api-reference#report).
+A row turns `❌ REGRESSION` when a metric breaks its percentage or absolute limit, and the CLI then exits `1`. When a metric rises from a baseline of `0` there is no percentage to report, so `% Change` shows `from 0`; the row is still a regression whenever the rise exceeds `--max-delta-pct` or an absolute limit. All statuses, including `🆕 NEW` and `🗑️ REMOVED` functions, are listed in the [report reference](https://budgetgate.github.io/docs/core/api-reference#report).
 
 ### Exit codes
 
@@ -140,7 +140,7 @@ A row turns `❌ REGRESSION` when a metric breaks its percentage or absolute lim
 |------|---------|
 | `0` | No regression. Also `-h`. |
 | `1` | At least one metric regressed, or a cap warning with `--fail-on-cap-warning`. |
-| `2` | The run could not compare: bad or missing flags, unreadable or invalid files, an unsupported `schema_version`, a fixture or `--new` snapshot that repeats a function name, an RPC failure, or a `--output-json` file that could not be written. |
+| `2` | The run could not compare: bad or missing flags, unreadable or invalid files, an unsupported `schema_version`, a fixture or `--new` snapshot that repeats a function name, an RPC failure, a call whose simulation would restore archived contract state (its cost would not be the call's own), or a `--output-json` file that could not be written. |
 
 stdout carries only the Markdown report, so it can be redirected or posted as-is. Usage, progress and error messages go to stderr; on an error, stdout is empty, except when only writing `--output-json` failed: the report is printed first, then the run exits `2`.
 
