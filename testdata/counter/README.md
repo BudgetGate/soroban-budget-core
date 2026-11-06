@@ -47,4 +47,15 @@ testdata/counter/redeploy.sh /tmp/counter    # or write them elsewhere to look f
 
 It funds (or creates) the `budgetgate-verify` key, builds and deploys v1 and v2, writes both fixtures with `stellar contract invoke --build-only`, regenerates both snapshots with core, and checks that core exits 1 on v2. Each testnet step is tried up to three times, since the RPC sometimes times out. Afterwards, update the contract IDs above and the result table if the numbers moved, and copy `fixture_v1.json` to `budget/fixture.json` in `BudgetGate/budgetgate-action-test`. `target/` is ignored.
 
+Contracts are also archived when their TTL runs out; testnet's minimum for persistent entries is 120,960 ledgers, about 7 days. Core then exits 2 instead of reporting a cost that includes the restore. On 2026-11-06 (protocol 30) the archived v1 and v2 simulated at 474,777 and 693,120 CPU; after restoring them, both measured the committed snapshots exactly. `redeploy.sh` now extends each contract and its wasm by 1,500,000 ledgers, about 86 days. To recover without redeploying, restore and extend both entries:
+
+```bash
+stellar contract restore --id <contract> --source budgetgate-verify --network testnet
+stellar contract restore --wasm-hash <hash> --source budgetgate-verify --network testnet
+stellar contract extend --id <contract> --ledgers-to-extend 1500000 --source budgetgate-verify --network testnet
+stellar contract extend --wasm-hash <hash> --ledgers-to-extend 1500000 --source budgetgate-verify --network testnet
+```
+
+Restoring `--id` alone leaves the wasm archived. `<hash>` is the SHA-256 of the deployed wasm (`stellar contract fetch --id <contract> -o counter.wasm`).
+
 Checked on 2026-10-29: the script deployed new contracts (v1 `CCF3UEF6LIHRLGRV6XZKHGBG5JN7MV2Z253CHYPCCGT7CM45Z5TODNMW`, v2 `CAM6NSDDIAWKIDDBRI7YNE2QAOEYMCDCIL4BQY7ZICRLWL5PIUBXVEM3`) into a scratch directory, and their snapshots matched the committed ones exactly.

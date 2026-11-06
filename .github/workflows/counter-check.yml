@@ -2,7 +2,8 @@ name: Counter check
 
 # Measures the counter contract fixtures on testnet every week and compares the results with the
 # committed snapshots, so a testnet reset or a change in measured cost shows up as a failed run
-# instead of being found by a user. Recovery: testdata/counter/redeploy.sh (see its README).
+# instead of being found by a user. Recovery: testdata/counter/redeploy.sh, or restoring archived
+# contracts (see its README).
 on:
   schedule:
     - cron: "17 6 * * 1"
@@ -32,7 +33,7 @@ jobs:
       run: |
         echo '{"schema_version":"2.0","functions":[]}' > "$RUNNER_TEMP/empty.json"
         if ! ./budget-core --baseline "$RUNNER_TEMP/empty.json" --fixture testdata/counter/fixture_v1.json --output-json "$RUNNER_TEMP/snapshot_v1.json"; then
-          echo "::error::Measuring counter v1 on testnet failed. If the error above is a simulation failure, testnet was probably reset: run testdata/counter/redeploy.sh."
+          echo "::error::Measuring counter v1 on testnet failed. If the error above is a simulation failure, testnet was probably reset: run testdata/counter/redeploy.sh. If it names archived ledger entries, restore and extend the contracts (testdata/counter/README.md)."
           exit 1
         fi
 
@@ -41,7 +42,7 @@ jobs:
         status=0
         ./budget-core --baseline "$RUNNER_TEMP/snapshot_v1.json" --fixture testdata/counter/fixture_v2.json --output-json "$RUNNER_TEMP/snapshot_v2.json" || status=$?
         if [ "$status" -ne 1 ]; then
-          echo "::error::Expected core to exit 1 (regression) on counter v2, got $status. A simulation failure means testnet was probably reset: run testdata/counter/redeploy.sh."
+          echo "::error::Expected core to exit 1 (regression) on counter v2, got $status. A simulation failure means testnet was probably reset: run testdata/counter/redeploy.sh. If the error names archived ledger entries, restore and extend the contracts (testdata/counter/README.md)."
           exit 1
         fi
 

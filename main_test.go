@@ -36,6 +36,8 @@ func TestRunExitCodes(t *testing.T) {
 	// f twice, with different costs: either one would be a guess as the baseline.
 	dupSnapshot := write("dup.json", `{"schema_version": "2.0", "functions": [{"name": "f", "cpu_instructions": 1000, "read_bytes": 144, "write_bytes": 0, "read_entries": 2, "write_entries": 0}, {"name": "f", "cpu_instructions": 9000, "read_bytes": 144, "write_bytes": 0, "read_entries": 2, "write_entries": 0}]}`)
 	missing := filepath.Join(dir, "missing.json")
+	rpcArchived := archivedRPC(t)
+	defer rpcArchived.Close()
 
 	// The fake RPC reports 91,406 actual instructions, so the fixture run regresses against base.
 	rpcOK := paddingRPC(t, 91406, 50000)
@@ -89,6 +91,7 @@ func TestRunExitCodes(t *testing.T) {
 		{name: "missing fixture", args: []string{"--baseline", base, "--fixture", missing, "--rpc-url", rpcOK.URL}, want: exitError, wantStderr: "Error opening fixture"},
 		{name: "invalid fixture JSON", args: []string{"--baseline", base, "--fixture", badJSON, "--rpc-url", rpcOK.URL}, want: exitError, wantStderr: "Error decoding fixture JSON"},
 		{name: "RPC failure", args: []string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpcSimFails.URL}, want: exitError, wantStderr: "Failed to measure resources for f"},
+		{name: "archived contract state", args: []string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpcArchived.URL}, want: exitError, wantStderr: "archived ledger entries (2)"},
 		{name: "network caps unavailable, fixture", args: []string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpcDown.URL}, want: exitError, wantStderr: "Error reading network caps"},
 		{name: "network caps unavailable, --new", args: []string{"--baseline", base, "--new", same, "--rpc-url", rpcDown.URL}, want: exitError, wantStderr: "Error reading network caps"},
 		{name: "offline --new with cap warnings off", args: []string{"--baseline", base, "--new", same, "--cap-warning-pct", "0", "--rpc-url", rpcDown.URL}, want: exitOK, wantStdout: "| f | CPUInstructions | 1000 | 1000 | 0 | 0.00% | n/a | ✅ OK |"},
