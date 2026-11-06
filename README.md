@@ -1,8 +1,18 @@
 <p align="center"><img src=".github/avatar.png" width="120" alt="Budget Gate logo: a resource-cost gauge behind a gate bar"></p>
 
-# Soroban Budget Guard - Core Engine
+# soroban-budget-core
 
-`soroban-budget-core` is the Go CLI at the heart of the **BudgetGate** suite. It simulates Soroban contract calls with the RPC method `simulateTransaction`, compares the measured resource cost against a baseline snapshot, and prints a Markdown report.
+<p align="center">
+  <a href="https://github.com/BudgetGate/soroban-budget-core/actions/workflows/ci.yml"><img src="https://github.com/BudgetGate/soroban-budget-core/actions/workflows/ci.yml/badge.svg" alt="Core CI"></a>
+  <a href="https://github.com/BudgetGate/soroban-budget-core/releases/latest"><img src="https://img.shields.io/github/v/release/BudgetGate/soroban-budget-core" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/BudgetGate/soroban-budget-core" alt="License: MIT"></a>
+</p>
+
+<p align="center"><a href="https://budgetgate.github.io/docs/">Docs</a> · <a href="https://budgetgate.github.io/docs/#see-it-run">Demo (75 s)</a> · <a href="https://budgetgate-dashboard.vercel.app/">Dashboard</a> · <a href="https://github.com/BudgetGate/soroban-budget-core/discussions">Discussions</a></p>
+
+**Budget Gate fails a pull request when a Soroban contract function gets more expensive.** It measures each function through a Soroban RPC, testnet in the examples, so there is no local network to set up, and it keeps the history. Soroban enforces resource limits when a transaction executes, so a change that passes every test can still make a call cost more, or push it past a network limit.
+
+`soroban-budget-core` is the Go CLI at the heart of Budget Gate. It simulates Soroban contract calls with the RPC method `simulateTransaction`, compares the measured resource cost against a baseline snapshot, and prints a Markdown report.
 
 **Documentation:** [budgetgate.github.io/docs](https://budgetgate.github.io/docs/core/). This README covers building and running core; the docs site explains how the numbers are measured.
 
@@ -161,6 +171,10 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) before opening a pull request.
 ## 🤝 Integration
 
 This core binary is designed to be used independently or wrapped by our GitHub Action (`soroban-budget-action`) for seamless CI/CD integration.
+## Community
+
+Questions and ideas: [GitHub Discussions](https://github.com/BudgetGate/soroban-budget-core/discussions). Contributions are welcome; see [`CONTRIBUTING.md`](CONTRIBUTING.md) and the [open issues](https://github.com/BudgetGate/soroban-budget-core/issues).
+
 ## 🔒 Security
 
 Report vulnerabilities privately; see [`SECURITY.md`](./SECURITY.md).
