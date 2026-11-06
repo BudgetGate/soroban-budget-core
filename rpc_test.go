@@ -325,6 +325,35 @@ func TestParseOptionalInt(t *testing.T) {
 	}
 }
 
+// URLs can carry API keys in the userinfo, path or query; only the scheme and host are shown.
+func TestRedactURL(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"https://soroban-testnet.stellar.org", "https://soroban-testnet.stellar.org"},
+		{"https://rpc.example/SECRET-TOKEN/", "https://rpc.example"},
+		{"https://rpc.example/?apikey=SECRET-TOKEN", "https://rpc.example"},
+		{"https://user:SECRET-TOKEN@rpc.example:8443/x", "https://rpc.example:8443"},
+		{"https://rpc.example/x#SECRET-TOKEN", "https://rpc.example"},
+		{"not a url SECRET-TOKEN", "[invalid URL]"},
+		{"", "[invalid URL]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			assert.Equal(t, tt.want, redactURL(tt.in))
+		})
+	}
+}
+
+func TestPostJSONRPC_ErrorHidesURL(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	addr := ts.URL
+	ts.Close() // connections to it now fail, and the error would name the URL
+
+	_, err := postJSONRPC(context.Background(), addr+"/SECRET-TOKEN?apikey=SECRET-TOKEN", "getNetwork", nil)
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "SECRET-TOKEN")
+	assert.Contains(t, err.Error(), addr)
+}
+
 func TestBodySnippet(t *testing.T) {
 	tests := []struct {
 		name string

@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -47,6 +49,25 @@ type SimulateTransactionResponse struct {
 // rpcTimeout bounds a single RPC round trip, including reading the response.
 const rpcTimeout = 30 * time.Second
 
+// redactURL returns only the scheme and host of an RPC URL, for messages. Providers put API keys
+// in the userinfo, path or query, and stderr often ends up in public CI logs.
+func redactURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return "[invalid URL]"
+	}
+	return u.Scheme + "://" + u.Host
+}
+
+// hideURL replaces the full URL that net/http puts in its errors with the redacted one.
+func hideURL(err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		ue.URL = redactURL(ue.URL)
+	}
+	return err
+}
+
 // postJSONRPC sends one JSON-RPC request and returns the response body. A non-200 status is an
 // error; decoding the body, including any JSON-RPC error, is left to the caller.
 func postJSONRPC(ctx context.Context, rpcURL, method string, params interface{}) ([]byte, error) {
@@ -57,14 +78,14 @@ func postJSONRPC(ctx context.Context, rpcURL, method string, params interface{})
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rpcURL, bytes.NewReader(payload))
 	if err != nil {
-		return nil, fmt.Errorf("failed to build request: %w", err)
+		return nil, fmt.Errorf("failed to build request: %w", hideURL(err))
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{Timeout: rpcTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("rpc post failed: %w", err)
+		return nil, fmt.Errorf("rpc post failed: %w", hideURL(err))
 	}
 	defer resp.Body.Close()
 

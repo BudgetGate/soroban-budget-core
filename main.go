@@ -18,8 +18,21 @@ const (
 	exitError      = 2 // usage or runtime error
 )
 
+const (
+	defaultRPCURL = "https://soroban-testnet.stellar.org"
+	rpcURLEnv     = "SOROBAN_RPC_URL"
+)
+
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+// envOrDefault returns the value of the environment variable key, or fallback when it is unset or empty.
+func envOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
 
 // run executes the CLI and returns its exit code. stdout carries only the Markdown report, so
@@ -30,7 +43,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	baselinePath := fs.String("baseline", "", "Path to baseline snapshot JSON")
 	newPath := fs.String("new", "", "Path to new snapshot JSON (optional if using fixture)")
 	fixturePath := fs.String("fixture", "", "Path to fixture JSON containing XDRs for simulation")
-	rpcURL := fs.String("rpc-url", "https://soroban-testnet.stellar.org", "Soroban RPC URL")
+	// The default is resolved after parsing, not set here: flag prints a default in -h, and a URL
+	// from SOROBAN_RPC_URL may carry an API token.
+	rpcURL := fs.String("rpc-url", "", "Soroban RPC URL (default: $"+rpcURLEnv+" if set, else "+defaultRPCURL+")")
 	outputJson := fs.String("output-json", "", "Path to write the new snapshot JSON to")
 	commitSHA := fs.String("commit-sha", "", "Commit of the contract code being measured, recorded in the snapshot (fixture runs)")
 	maxDeltaPct := fs.Float64("max-delta-pct", 10.0, "Maximum allowed percentage increase in resource usage (0 disables)")
@@ -48,6 +63,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return exitOK
 		}
 		return exitError
+	}
+	if *rpcURL == "" {
+		*rpcURL = envOrDefault(rpcURLEnv, defaultRPCURL)
 	}
 
 	thresholds := Thresholds{MaxDeltaPct: *maxDeltaPct, CapWarningPct: *capWarningPct, MaxIncrease: map[string]int64{}}
@@ -93,11 +111,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 	// cap warnings are off, so it can work offline; % of Cap then shows n/a.
 	var caps NetworkCaps
 	if *fixturePath != "" || *capWarningPct > 0 {
-		fmt.Fprintf(stderr, "Reading network caps from %s...\n", *rpcURL)
+		fmt.Fprintf(stderr, "Reading network caps from %s...\n", redactURL(*rpcURL))
 		var err error
 		caps, err = FetchNetworkCaps(context.Background(), *rpcURL)
 		if err != nil {
-			fmt.Fprintf(stderr, "Error reading network caps from %s: %v\n", *rpcURL, err)
+			fmt.Fprintf(stderr, "Error reading network caps from %s: %v\n", redactURL(*rpcURL), err)
 			return exitError
 		}
 		thresholds.NetworkCaps = caps.Limits
@@ -106,7 +124,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	var newSnapshot *Snapshot
 
 	if *fixturePath != "" {
-		fmt.Fprintf(stderr, "Simulating transactions from fixture via %s...\n", *rpcURL)
+		fmt.Fprintf(stderr, "Simulating transactions from fixture via %s...\n", redactURL(*rpcURL))
 
 		fixtureFile, err := os.Open(*fixturePath)
 		if err != nil {
