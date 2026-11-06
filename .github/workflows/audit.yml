@@ -26,5 +26,10 @@ jobs:
       with:
         go-version-file: go.mod
 
+    # Every module must match Go's public checksum database (sum.golang.org), so a tampered or
+    # swapped download fails here.
+    - name: Module checksums
+      run: go mod verify
+
     - name: govulncheck
       run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
