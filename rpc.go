@@ -145,6 +145,9 @@ type Resources struct {
 	// DiskReadBytes, so entry counts are the only signal for added contract-storage access.
 	ReadEntries  int64 // every footprint entry (read-only and read-write)
 	WriteEntries int64 // read-write footprint entries
+	// Footprint entries the transaction would restore from the archive. Since protocol 23 a
+	// simulation restores archived entries automatically, and its figures include that work.
+	ArchivedEntries int64
 }
 
 // ParseTransactionData decodes the base64 SorobanTransactionData XDR returned by simulateTransaction.
@@ -158,6 +161,11 @@ func ParseTransactionData(b64 string) (Resources, error) {
 		return Resources{}, fmt.Errorf("failed to decode transactionData XDR: %w", err)
 	}
 
+	var archived int64
+	if ext, ok := txData.Ext.GetResourceExt(); ok {
+		archived = int64(len(ext.ArchivedSorobanEntries))
+	}
+
 	footprint := txData.Resources.Footprint
 	return Resources{
 		CPUInstructions: int64(txData.Resources.Instructions),
@@ -165,6 +173,7 @@ func ParseTransactionData(b64 string) (Resources, error) {
 		WriteBytes:      int64(txData.Resources.WriteBytes),
 		ReadEntries:     int64(len(footprint.ReadOnly) + len(footprint.ReadWrite)),
 		WriteEntries:    int64(len(footprint.ReadWrite)),
+		ArchivedEntries: archived,
 	}, nil
 }
 
@@ -188,6 +197,14 @@ func MeasureResources(ctx context.Context, rpcURL string, txXDR string) (Resourc
 	low, err := ParseTransactionData(lowResp.Result.TransactionData)
 	if err != nil {
 		return Resources{}, nil, err
+	}
+
+	// The figures would include the restore, so they are not the cost of the call. Comparing them
+	// would report a regression that the code did not cause, or hide one as a saved baseline.
+	if low.ArchivedEntries > 0 {
+		return Resources{}, nil, fmt.Errorf(
+			"cannot measure the call alone: the simulation restores archived ledger entries (%d), and its cost includes that; restore the contract and its wasm and extend their TTL (stellar contract restore, stellar contract extend), or redeploy, then measure again",
+			low.ArchivedEntries)
 	}
 
 	highResp, err := simulateTransaction(ctx, rpcURL, txXDR, measureLeewayHigh)
