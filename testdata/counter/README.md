@@ -11,7 +11,9 @@ A small Soroban contract used to check that core's measurement moves when a cont
 | `fixture_v1.json`, `fixture_v2.json` | Fixtures with one `bump` call each, built with `stellar contract invoke --build-only` against the deployed v1 and v2 contracts. Unsigned; the source account is a public key only. |
 | `snapshot_v1.json`, `snapshot_v2.json` | Snapshots written by core from the two fixtures on 2026-10-27, protocol 29. `TestCounterContractSnapshots` compares them offline. |
 
-Deployed on testnet on 2026-10-26: v1 `CBRHXROBMMVVQAIQWJOSI4LJZFAOAO7BF5XKPMZHJ7NBIL3DSSA2MM4W`, v2 `CB4RIW7CU345POFUEQYLVXOZW52TKVCMCDZDA5N4XMB6LTW7ON3VHNKX`.
+Deployed on testnet on 2026-11-06: v1 `CD3X3ES5JL7PSUGXDBMSEJ3RDTMJ3MILEIAP57H6KYTEREE6CQAGXHHE`, v2 `CBR2MOOCLBJ74INLLKNZPB5GRKA2SPHX5G3O4CHZIGVPTZZ633KIVC2Z` (TTL extended by 1,500,000 ledgers, about 86 days). The 2026-10-26 deployments are retired: they were called for real on 2026-11-06, which changed their measured cost.
+
+**Do not call these contracts for real.** The snapshots measure the first call, when the `COUNT` entry does not exist yet. Once a real call has stored it, every later simulation reads it and costs more: on a fresh v1 contract, 291,573 instructions before any call and 301,254 after 1, 2, 5, 11 and 12 calls (testnet, protocol 30, 2026-11-06). Footprints and bytes do not change, so only CPU moves. A contract's cost depends on its stored state, and fixtures measure whatever state the contract is in.
 
 ## Result
 
