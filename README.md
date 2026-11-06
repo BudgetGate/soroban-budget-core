@@ -51,7 +51,7 @@ Releases from v0.2.4 also carry a signed build provenance attestation for each b
 gh attestation verify budget-core -R BudgetGate/soroban-budget-core
 ```
 
-`budget-core --version` prints the release the binary was built from, for example `budget-core v0.2.4`, and needs no other flags or network. Releases after v0.2.3 report their tag; a binary built with a plain `go build` reports `budget-core dev`. The release workflow checks that each published binary reports its own tag before it publishes.
+`budget-core --version` prints the release the binary was built from, for example `budget-core v0.2.5`, and needs no other flags or network. Releases after v0.2.4 report their tag (v0.2.4 and earlier have no `--version`); a binary built with a plain `go build` reports `budget-core dev`. The release workflow checks that each published binary reports its own tag before it publishes.
 
 ### Build from source
 
