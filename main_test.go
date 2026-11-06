@@ -272,6 +272,25 @@ func TestRPCURLEnvDefault(t *testing.T) {
 		assert.Zero(t, hits.Load())
 	})
 
+	t.Run("stderr never shows the token", func(t *testing.T) {
+		var hits atomic.Int64
+		srv := newRPC(&hits)
+		down := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		downURL := down.URL
+		down.Close()
+
+		fixture := filepath.Join(dir, "fixture.json")
+		require.NoError(t, os.WriteFile(fixture, []byte(`[{"name": "f", "fixture_id": "t", "xdr": "AAAA"}]`), 0o644))
+		for _, base := range []string{srv.URL, downURL} {
+			t.Setenv(rpcURLEnv, base+"/SECRET-TOKEN?apikey=SECRET-TOKEN")
+			var stdout, stderr bytes.Buffer
+			got := run([]string{"--baseline", snapshot, "--fixture", fixture}, &stdout, &stderr)
+			assert.Equal(t, exitError, got)
+			assert.Contains(t, stderr.String(), base)
+			assert.NotContains(t, stderr.String(), "SECRET-TOKEN")
+		}
+	})
+
 	t.Run("help does not print the value", func(t *testing.T) {
 		t.Setenv(rpcURLEnv, "https://rpc.example/SECRET-TOKEN")
 		var stdout, stderr bytes.Buffer

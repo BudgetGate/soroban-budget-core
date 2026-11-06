@@ -111,11 +111,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 	// cap warnings are off, so it can work offline; % of Cap then shows n/a.
 	var caps NetworkCaps
 	if *fixturePath != "" || *capWarningPct > 0 {
-		fmt.Fprintf(stderr, "Reading network caps from %s...\n", *rpcURL)
+		fmt.Fprintf(stderr, "Reading network caps from %s...\n", redactURL(*rpcURL))
 		var err error
 		caps, err = FetchNetworkCaps(context.Background(), *rpcURL)
 		if err != nil {
-			fmt.Fprintf(stderr, "Error reading network caps from %s: %v\n", *rpcURL, err)
+			fmt.Fprintf(stderr, "Error reading network caps from %s: %v\n", redactURL(*rpcURL), err)
 			return exitError
 		}
 		thresholds.NetworkCaps = caps.Limits
@@ -124,7 +124,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	var newSnapshot *Snapshot
 
 	if *fixturePath != "" {
-		fmt.Fprintf(stderr, "Simulating transactions from fixture via %s...\n", *rpcURL)
+		fmt.Fprintf(stderr, "Simulating transactions from fixture via %s...\n", redactURL(*rpcURL))
 
 		fixtureFile, err := os.Open(*fixturePath)
 		if err != nil {
