@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -204,10 +205,21 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
+	// Costs measured on another network are not comparable. Like a repeated name, this compares
+	// every function as new instead of failing, so a caller that saves this run's snapshot as the
+	// next baseline (the Action on the default branch) recovers on its own.
+	networkNote := ""
+	if base, cur := snapshotNetwork(baseline), snapshotNetwork(newSnapshot); base != "" && cur != "" && base != cur {
+		fmt.Fprintf(stderr, "Warning: the baseline was measured on %s and the new snapshot on %s; comparing every function as new.\n", strconv.Quote(base), strconv.Quote(cur))
+		networkNote = fmt.Sprintf("\nThe baseline was measured on %s, not %s, so every function is compared as new.\n", escapeCell(base), escapeCell(cur))
+		baseline.Functions = nil
+	}
+
 	results := CompareSnapshots(baseline, newSnapshot, thresholds)
 
 	markdown := FormatDiffs(results)
 	fmt.Fprint(stdout, markdown)
+	fmt.Fprint(stdout, networkNote)
 	if caps.Limits != nil {
 		fmt.Fprintf(stdout, "\n%% of Cap uses the network's per-transaction limits at protocol %d, ledger %d.\n", caps.ProtocolVersion, caps.Ledger)
 	}
@@ -236,6 +248,16 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return exitRegression
 	}
 	return exitOK
+}
+
+// snapshotNetwork returns the network a snapshot was measured on, or "" when it is unknown.
+// Snapshots written before core filled the metadata say "testnet" whatever the network was;
+// they are the ones with an empty generated_at (SCHEMA.md).
+func snapshotNetwork(s *Snapshot) string {
+	if s.GeneratedAt == "" {
+		return ""
+	}
+	return s.Network
 }
 
 // writeSnapshot writes s as indented JSON.

@@ -35,6 +35,11 @@ func TestRunExitCodes(t *testing.T) {
 	dupFixture := write("dup-fixture.json", `[{"name": "f", "fixture_id": "t", "xdr": "AAAA"}, {"name": "f", "fixture_id": "u", "xdr": "AAAA"}]`)
 	// f twice, with different costs: either one would be a guess as the baseline.
 	dupSnapshot := write("dup.json", `{"schema_version": "2.0", "functions": [{"name": "f", "cpu_instructions": 1000, "read_bytes": 144, "write_bytes": 0, "read_entries": 2, "write_entries": 0}, {"name": "f", "cpu_instructions": 9000, "read_bytes": 144, "write_bytes": 0, "read_entries": 2, "write_entries": 0}]}`)
+	// The same costs as base, measured on named networks. A snapshot without generated_at predates
+	// real metadata, so its "testnet" is a placeholder and the network counts as unknown.
+	onMainnet := write("mainnet.json", `{"schema_version": "2.0", "network": "mainnet", "generated_at": "2026-11-09T00:00:00Z", "functions": [{"name": "f", "cpu_instructions": 1000, "read_bytes": 144, "write_bytes": 0, "read_entries": 2, "write_entries": 0}]}`)
+	onTestnet := write("testnet.json", `{"schema_version": "2.0", "network": "testnet", "generated_at": "2026-11-09T00:00:00Z", "functions": [{"name": "f", "cpu_instructions": 2000, "read_bytes": 144, "write_bytes": 0, "read_entries": 2, "write_entries": 0}]}`)
+	placeholderTestnet := write("placeholder.json", `{"schema_version": "1.0", "network": "testnet", "generated_at": "", "functions": [{"name": "f", "cpu_instructions": 1000, "read_bytes": 144, "write_bytes": 0, "read_entries": 2, "write_entries": 0}]}`)
 	missing := filepath.Join(dir, "missing.json")
 	rpcArchived := archivedRPC(t)
 	defer rpcArchived.Close()
@@ -102,6 +107,10 @@ func TestRunExitCodes(t *testing.T) {
 		{name: "duplicate name in fixture", args: []string{"--baseline", base, "--fixture", dupFixture}, want: exitError, wantStderr: `Fixture has more than one entry named "f"`},
 		{name: "duplicate name in new snapshot", args: []string{"--baseline", base, "--new", dupSnapshot}, want: exitError, wantStderr: `New snapshot has more than one function named "f"`},
 		{name: "duplicate name in baseline is compared as new", args: []string{"--baseline", dupSnapshot, "--new", same}, want: exitOK, wantStdout: "| f | CPUInstructions | n/a | 1000 | n/a | n/a | 0.00% | 🆕 NEW |", wantStderr: `Warning: the baseline has more than one function named "f"`},
+		{name: "baseline from another network is compared as new", args: []string{"--baseline", onMainnet, "--new", onTestnet}, want: exitOK, wantStdout: "The baseline was measured on mainnet, not testnet, so every function is compared as new.", wantStderr: `Warning: the baseline was measured on "mainnet" and the new snapshot on "testnet"`},
+		{name: "same network compares", args: []string{"--baseline", onTestnet, "--new", onTestnet}, want: exitOK, wantStdout: "| f | CPUInstructions | 2000 | 2000 |"},
+		{name: "placeholder network in an old baseline still compares", args: []string{"--baseline", placeholderTestnet, "--new", onMainnet}, want: exitOK, wantStdout: "| f | CPUInstructions | 1000 | 1000 |"},
+		{name: "unknown network in the new snapshot still compares", args: []string{"--baseline", onMainnet, "--new", regressed}, want: exitRegression, wantStdout: "❌ REGRESSION"},
 		{name: "fixture regresses", args: []string{"--baseline", base, "--fixture", fixture, "--rpc-url", rpcOK.URL}, want: exitRegression, wantStdout: "| f | CPUInstructions | 1000 | 91406 |", wantStderr: "Simulating transactions from fixture"},
 	}
 
