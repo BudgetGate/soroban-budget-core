@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strconv"
 	"time"
@@ -80,6 +81,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 
 	thresholds := Thresholds{MaxDeltaPct: *maxDeltaPct, CapWarningPct: *capWarningPct, MaxIncrease: map[string]int64{}}
+	// flag accepts NaN and Inf. Every comparison with NaN is false, so it would pass validation
+	// and then silently never report a regression.
+	for _, v := range []float64{*maxDeltaPct, *capWarningPct} {
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			fmt.Fprintln(stderr, "Thresholds must be finite numbers (use 0 to disable a check).")
+			return exitError
+		}
+	}
 	if *maxDeltaPct < 0 || *capWarningPct < 0 {
 		fmt.Fprintln(stderr, "Thresholds must not be negative.")
 		return exitError

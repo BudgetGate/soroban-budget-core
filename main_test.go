@@ -85,6 +85,8 @@ func TestRunExitCodes(t *testing.T) {
 		{name: "absolute CPU limit not exceeded", args: []string{"--baseline", base, "--new", regressed, "--max-delta-pct", "0", "--max-cpu-increase", "5000"}, want: exitOK},
 		{name: "cap warning level from flag (does not fail by default)", args: []string{"--baseline", base, "--new", same, "--cap-warning-pct", "0.0001"}, want: exitOK, wantStdout: "⚠️ CAP WARNING"},
 		{name: "negative threshold", args: []string{"--baseline", base, "--new", same, "--max-read-entries-increase", "-1"}, want: exitError, wantStderr: "Thresholds must not be negative."},
+		{name: "NaN percentage threshold", args: []string{"--baseline", base, "--new", regressed, "--max-delta-pct", "NaN"}, want: exitError, wantStderr: "Thresholds must be finite numbers"},
+		{name: "infinite cap warning threshold", args: []string{"--baseline", base, "--new", same, "--cap-warning-pct", "+Inf"}, want: exitError, wantStderr: "Thresholds must be finite numbers"},
 		{name: "no arguments", args: nil, want: exitError, wantStderr: "Usage:"},
 		{name: "undefined flag", args: []string{"--bogus"}, want: exitError, wantStderr: "flag provided but not defined"},
 		{name: "missing baseline file", args: []string{"--baseline", missing, "--new", same}, want: exitError, wantStderr: "Error opening baseline"},
