@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"github.com/stellar/go-stellar-sdk/xdr"
@@ -155,6 +156,34 @@ func TestSimulateTransaction_ContextDeadline(t *testing.T) {
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Nil(t, resp)
 	assert.Less(t, time.Since(start), 5*time.Second)
+}
+
+func TestPostJSONRPC_ResponseSize(t *testing.T) {
+	tests := []struct {
+		name    string
+		size    int64
+		wantErr string
+	}{
+		{name: "at the limit", size: maxResponseBytes},
+		{name: "over the limit", size: maxResponseBytes + 1, wantErr: "larger than"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Write(bytes.Repeat([]byte(" "), int(tt.size)))
+			}))
+			defer ts.Close()
+
+			body, err := postJSONRPC(context.Background(), ts.URL, "getNetwork", nil)
+			if tt.wantErr != "" {
+				assert.ErrorContains(t, err, tt.wantErr)
+				assert.Nil(t, body)
+				return
+			}
+			require.NoError(t, err)
+			assert.Len(t, body, int(tt.size))
+		})
+	}
 }
 
 func TestParseTransactionData(t *testing.T) {
