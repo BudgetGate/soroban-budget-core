@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Thresholds decide which metric changes are regressions or cap warnings. A zero value
@@ -192,17 +193,40 @@ func formatChangePct(res DiffResult) string {
 	return fmt.Sprintf("%.2f%%", res.DeltaPct)
 }
 
+// cellEscaper makes text safe inside a Markdown table cell. Function names come from the fixture,
+// which a pull request can edit, and the report is posted as a PR comment: a "|" or a line break
+// would split the row, and HTML or link syntax would render, so a name could fake rows, badges
+// or images. Plain names are unchanged.
+var cellEscaper = strings.NewReplacer(
+	"\\", "\\\\",
+	"|", "\\|",
+	"`", "\\`",
+	"[", "\\[",
+	"]", "\\]",
+	"&", "&amp;",
+	"<", "&lt;",
+	">", "&gt;",
+	"\r\n", " ",
+	"\r", " ",
+	"\n", " ",
+)
+
+// escapeCell returns s escaped for a Markdown table cell (see cellEscaper).
+func escapeCell(s string) string {
+	return cellEscaper.Replace(s)
+}
+
 func FormatDiffs(results []DiffResult) string {
 	markdown := "| Function | Metric | Baseline | New | Delta | % Change | % of Cap | Status |\n"
 	markdown += "|----------|--------|----------|-----|-------|----------|----------|--------|\n"
 
 	for _, res := range results {
 		if res.Removed {
-			markdown += fmt.Sprintf("| %s | — | n/a | n/a | n/a | n/a | n/a | 🗑️ REMOVED |\n", res.FunctionName)
+			markdown += fmt.Sprintf("| %s | — | n/a | n/a | n/a | n/a | n/a | 🗑️ REMOVED |\n", escapeCell(res.FunctionName))
 			continue
 		}
 		if res.Unavailable {
-			markdown += fmt.Sprintf("| %s | %s | n/a | n/a | n/a | n/a | n/a | ➖ NOT REPORTED |\n", res.FunctionName, res.Metric)
+			markdown += fmt.Sprintf("| %s | %s | n/a | n/a | n/a | n/a | n/a | ➖ NOT REPORTED |\n", escapeCell(res.FunctionName), res.Metric)
 			continue
 		}
 		if res.Added {
@@ -211,7 +235,7 @@ func FormatDiffs(results []DiffResult) string {
 				status = "🆕 NEW & ⚠️ CAP WARNING"
 			}
 			markdown += fmt.Sprintf("| %s | %s | n/a | %d | n/a | n/a | %s | %s |\n",
-				res.FunctionName, res.Metric, res.NewValue, formatCapPct(res), status)
+				escapeCell(res.FunctionName), res.Metric, res.NewValue, formatCapPct(res), status)
 			continue
 		}
 
@@ -225,7 +249,7 @@ func FormatDiffs(results []DiffResult) string {
 		}
 
 		markdown += fmt.Sprintf("| %s | %s | %d | %d | %d | %s | %s | %s |\n",
-			res.FunctionName, res.Metric, res.BaselineValue, res.NewValue, res.Delta, formatChangePct(res), formatCapPct(res), status)
+			escapeCell(res.FunctionName), res.Metric, res.BaselineValue, res.NewValue, res.Delta, formatChangePct(res), formatCapPct(res), status)
 	}
 
 	return markdown

@@ -49,6 +49,11 @@ type SimulateTransactionResponse struct {
 // rpcTimeout bounds a single RPC round trip, including reading the response.
 const rpcTimeout = 30 * time.Second
 
+// maxResponseBytes bounds how much of one RPC response is read, so an RPC that streams without end
+// cannot exhaust the runner's memory before the timeout. Real responses are a few kilobytes
+// (testdata/simulate_*.json, getledgerentries_config.json).
+const maxResponseBytes int64 = 16 << 20
+
 // redactURL returns only the scheme and host of an RPC URL, for messages. Providers put API keys
 // in the userinfo, path or query, and stderr often ends up in public CI logs.
 func redactURL(raw string) string {
@@ -89,9 +94,13 @@ func postJSONRPC(ctx context.Context, rpcURL, method string, params interface{})
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, err := io.ReadAll(resp.Body)
+	// One byte past the limit tells a response that is too large from one that fits exactly.
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+	if int64(len(bodyBytes)) > maxResponseBytes {
+		return nil, fmt.Errorf("rpc response is larger than %d bytes", maxResponseBytes)
 	}
 
 	// A proxy or rate limiter can answer with an HTML page; report the status, not a JSON error.

@@ -235,6 +235,22 @@ func TestFormatDiffs(t *testing.T) {
 			res:  DiffResult{FunctionName: "mint", Metric: "WriteBytes", BaselineValue: 0, NewValue: 0, HasCap: true},
 			want: "| mint | WriteBytes | 0 | 0 | 0 | 0.00% | 0.00% | ✅ OK |",
 		},
+		{
+			// A fixture name is PR-controlled; it must not add cells, rows, HTML or links.
+			name: "name with table and line syntax",
+			res:  DiffResult{FunctionName: "a | 0 | ✅ OK |\n| b", Metric: "CPUInstructions", BaselineValue: 1, NewValue: 1, HasCap: true},
+			want: "| a \\| 0 \\| ✅ OK \\| \\| b | CPUInstructions | 1 | 1 | 0 | 0.00% | 0.00% | ✅ OK |",
+		},
+		{
+			name: "name with HTML and an image",
+			res:  DiffResult{FunctionName: "<!-- x --><img src=y>![p](https://e/b.svg)", Removed: true},
+			want: "| &lt;!-- x --&gt;&lt;img src=y&gt;!\\[p\\](https://e/b.svg) | — |",
+		},
+		{
+			name: "name with code span and escapes",
+			res:  DiffResult{FunctionName: "`x`\\&amp;", Metric: "ReadEntries", Unavailable: true},
+			want: "| \\`x\\`\\\\&amp;amp; | ReadEntries |",
+		},
 	}
 
 	for _, tt := range tests {
