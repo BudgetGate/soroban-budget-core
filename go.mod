@@ -3,7 +3,7 @@ module github.com/budgetgate/soroban-budget-core
 go 1.26.10
 
 require (
-	github.com/stellar/go-stellar-sdk v0.8.0
+	github.com/stellar/go-stellar-sdk v0.9.0
 	github.com/stretchr/testify v1.12.1
 )
 
